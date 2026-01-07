@@ -15,6 +15,12 @@ RUN git clone https://github.com/lquesada/ComfyUI-Inpaint-CropAndStitch.git
 # GGUF Loader support
 RUN git clone https://github.com/calcuis/gguf.git
 
+# MTB Nodes (utilities, math, conditioning, etc.)
+RUN git clone https://github.com/melMass/comfy_mtb.git
+
+# Easy Use Nodes (workflow helpers, loaders, shortcuts)
+RUN git clone https://github.com/yolain/ComfyUI-Easy-Use.git
+
 # Return to comfyui root
 WORKDIR /comfyui
 
