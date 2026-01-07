@@ -1,60 +1,34 @@
-# clean base image containing only comfyui, comfy-cli and comfyui-manager
+# Base image with ComfyUI
 FROM runpod/worker-comfyui:5.5.1-base
-# Install git (required for ComfyUI Manager and some custom nodes)
+
+# ============================
+# System dependencies
+# ============================
 RUN apt-get update && \
     apt-get install -y git && \
     rm -rf /var/lib/apt/lists/*
 
 # ============================
-# Install custom nodes manually
+# Install custom nodes
 # ============================
 WORKDIR /comfyui/custom_nodes
 
-# ComfyUI Custom Scripts (pysssss)
-RUN git clone https://github.com/pythongosssss/ComfyUI-Custom-Scripts.git
+# Use shallow clones to reduce RAM & network usage
+RUN git clone --depth=1 https://github.com/pythongosssss/ComfyUI-Custom-Scripts.git && \
+    git clone --depth=1 https://github.com/lquesada/ComfyUI-Inpaint-CropAndStitch.git && \
+    git clone --depth=1 https://github.com/calcuis/gguf.git && \
+    git clone --depth=1 https://github.com/melMass/comfy_mtb.git && \
+    git clone --depth=1 https://github.com/yolain/ComfyUI-Easy-Use.git
 
-# Inpaint Crop and Stitch (Improved Inpaint nodes)
-RUN git clone https://github.com/lquesada/ComfyUI-Inpaint-CropAndStitch.git
-
-# GGUF Loader support
-RUN git clone https://github.com/calcuis/gguf.git
-
-# MTB Nodes (utilities, math, conditioning, etc.)
-RUN git clone https://github.com/melMass/comfy_mtb.git
-
-# Easy Use Nodes (workflow helpers, loaders, shortcuts)
-RUN git clone https://github.com/yolain/ComfyUI-Easy-Use.git
-
-# Return to comfyui root
+# Return to ComfyUI root
 WORKDIR /comfyui
 
 # ============================
-# Download models into ComfyUI
+# Runtime model download note
 # ============================
-
-RUN comfy model download \
-    --url https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors \
-    --relative-path models/clip \
-    --filename qwen_2.5_vl_7b_fp8_scaled.safetensors
-
-RUN comfy model download \
-    --url https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors \
-    --relative-path models/vae \
-    --filename qwen_image_vae.safetensors
-
-# NOTE: Original requested filename for this LoRA was "Public\\Qween\\Qwen-Image-Edit-2509-Lightning-4steps-V2.0-fp32.safetensors"
-# Using V1.0 and renaming
-RUN comfy model download \
-    --url https://huggingface.co/lightx2v/Qwen-Image-Lightning/resolve/main/Qwen-Image-Edit-2509/Qwen-Image-Edit-2509-Lightning-4steps-V1.0-fp32.safetensors \
-    --relative-path models/loras \
-    --filename Qwen-Image-Edit-2509-Lightning-4steps-V2.0-fp32.safetensors
-
-RUN comfy model download \
-    --url https://huggingface.co/QuantStack/Qwen-Image-Edit-2509-GGUF/resolve/main/Qwen-Image-Edit-2509-Q5_K_S.gguf \
-    --relative-path models/diffusion_models \
-    --filename Qwen-Image-Edit-2509-Q5_K_S.gguf
-
-# ============================
-# Optional input copy
-# ============================
-# COPY input/ /comfyui/input/
+# IMPORTANT:
+# Models MUST be downloaded at runtime (entrypoint / start command),
+# not during docker build, to avoid EOF / BuildKit crashes.
+#
+# Example runtime command:
+# comfy model download --url <url> --relative-path models/...
