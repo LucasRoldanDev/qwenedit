@@ -190,28 +190,23 @@ if [ -n "$REPO_WORKFLOW_LORAS" ]; then
     LORA_DIR="${COMFY_DIR}/models/loras"
     mkdir -p "$LORA_DIR"
 
-    # ------------------------------------------------------------------
-    # CAMBIO SOLICITADO: Desactivar Venv, Instalar Pip Global, Ejecutar HF
-    # ------------------------------------------------------------------
-    
-    # 1. Salir del entorno virtual de ComfyUI para usar el entorno global
+    # 1. Salir del entorno virtual
     deactivate 2>/dev/null || true
     
-    echo "--> Instalando huggingface_hub globalmente antes de la descarga..."
-    
-    # Intentamos instalar. Usamos --break-system-packages por compatibilidad con Linux modernos en Docker
-    pip install huggingface_hub --break-system-packages || pip install huggingface_hub
+    echo "--> Instalando huggingface_hub globalmente..."
+    # Usamos -U para intentar forzar la actualización a la última versión
+    pip install -U huggingface_hub --break-system-packages || pip install -U huggingface_hub
     
     echo "--> Ejecutando descarga con 'hf'..."
     
-    # Ejecutamos hf (El token se toma de la variable de entorno exportada arriba)
+    # CORRECCIÓN: Se eliminó el flag --local-dir-use-symlinks False porque da error.
+    # El token se toma automáticamente de la variable exportada HF_TOKEN.
     hf download "$REPO_WORKFLOW_LORAS" \
         --local-dir "$LORA_DIR" \
-        --local-dir-use-symlinks False \
         --include "*.safetensors" "*.pt" "*.ckpt" \
         || echo "ERROR CRÍTICO: Falló la descarga del repositorio."
 
-    # 2. Reactivamos el entorno virtual para arrancar ComfyUI
+    # 2. Reactivar venv
     source "$VENV_DIR/bin/activate"
     echo "--> Descarga de repositorio finalizada."
 
