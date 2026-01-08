@@ -9,12 +9,12 @@ VENV_DIR="${COMFY_DIR}/venv"
 SAGE_WHEEL="sageattention-2.1.1-cp312-cp312-linux_x86_64.whl"
 SAGE_URL="https://huggingface.co/nitin19/flash-attention-wheels/resolve/main/$SAGE_WHEEL"
 
-# Captura del secreto de RunPod
-HF_TOKEN="$RUNPOD_SECRET_hf_tk"
+# Captura del secreto de RunPod y exportación para que el CLI lo detecte globalmente
+export HF_TOKEN="$RUNPOD_SECRET_hf_tk"
 
 if [ -n "$HF_TOKEN" ]; then
     echo "================================================================="
-    echo "TOKEN ENCONTRADO (RUNPOD_SECRET_hf_tk): Se habilitan descargas privadas."
+    echo "TOKEN ENCONTRADO Y EXPORTADO. Descargas privadas habilitadas."
     echo "================================================================="
 else
     echo "================================================================="
@@ -46,12 +46,26 @@ NODES_URLS=(
 )
 
 # =================================================================================
-# 1. PREPARACIÓN DEL SISTEMA Y PYTHON 3.12
+# 1. PREPARACIÓN DEL SISTEMA, DEPENDENCIAS GLOBALES Y PYTHON 3.12
 # =================================================================================
 echo ">>> [1/9] Actualizando sistema e instalando dependencias base..."
 apt update && apt upgrade -y
 apt install -y software-properties-common build-essential git python3-pip wget cmake pkg-config ninja-build
 
+# --- INSTALACIÓN DEL CLI DE HUGGINGFACE A NIVEL DE SISTEMA ---
+# Lo instalamos AHORA, usando el python por defecto del sistema (3.10 usualmente),
+# ANTES de instalar Python 3.12. Esto aísla la herramienta del entorno de ComfyUI.
+echo ">>> Instalando HuggingFace CLI globalmente..."
+pip3 install -U "huggingface_hub[cli]" --break-system-packages || pip3 install -U "huggingface_hub[cli]"
+
+# Verificación rápida
+if command -v huggingface-cli &> /dev/null; then
+    echo ">>> HuggingFace CLI instalado correctamente: $(huggingface-cli --version)"
+else
+    echo ">>> ADVERTENCIA: No se pudo instalar huggingface-cli globalmente."
+fi
+
+# --- INSTALACIÓN DE PYTHON 3.12 PARA COMFYUI ---
 add-apt-repository ppa:deadsnakes/ppa -y || echo "PPA ya existe o no es necesario"
 apt update
 apt install -y python3.12 python3.12-venv python3.12-dev
@@ -59,7 +73,7 @@ apt install -y python3.12 python3.12-venv python3.12-dev
 update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
 update-alternatives --set python3 /usr/bin/python3.12
 
-echo ">>> Versión de Python del sistema: $(python3 --version)"
+echo ">>> Versión de Python activa (para venv): $(python3 --version)"
 
 systemctl stop nginx 2>/dev/null || true
 pkill -f nginx || true
@@ -104,9 +118,6 @@ rm -f "$SAGE_WHEEL"
 wget "$SAGE_URL"
 pip install "./$SAGE_WHEEL"
 
-python -c 'import torch; print(f"Torch: {torch.__version__}, CUDA: {torch.version.cuda}")'
-python -c 'import sageattention; print("SageAttention instalado correctamente")' || echo "ERROR: Falló SageAttention"
-
 cd "$COMFY_DIR"
 pip install -r requirements.txt
 
@@ -135,93 +146,72 @@ for dir in */; do
 done
 
 # =================================================================================
-# 6. DESCARGA DE LORAS SUELTOS (Variable LORAS_URL)
+# 6. DESCARGA DE LORAS SUELTOS (Variable LORAS_URL - WGET)
 # =================================================================================
 if [ -n "$LORAS_URL" ]; then
-    echo ">>> [6/9] Argumento LORAS_URL detectado. Procesando descargas individuales..."
-    
+    echo ">>> [6/9] LORAS_URL detectado. Descargando archivos sueltos..."
     LORA_DIR="${COMFY_DIR}/models/loras"
     mkdir -p "$LORA_DIR"
     cd "$LORA_DIR"
 
     IFS=',' read -ra ADDR <<< "$LORAS_URL"
-    
     for url in "${ADDR[@]}"; do
         clean_url=$(echo "$url" | xargs)
         if [ -n "$clean_url" ]; then
-            echo "--> Descargando Lora: $clean_url"
-            
+            echo "--> Descargando: $clean_url"
             if [ -n "$HF_TOKEN" ]; then
-                wget --header "Authorization: Bearer $HF_TOKEN" --content-disposition "$clean_url" || echo "ADVERTENCIA: Falló descarga de $clean_url"
+                wget --header "Authorization: Bearer $HF_TOKEN" --content-disposition "$clean_url" || echo "ADVERTENCIA: Falló descarga"
             else
-                wget --content-disposition "$clean_url" || echo "ADVERTENCIA: Falló descarga de $clean_url"
+                wget --content-disposition "$clean_url" || echo "ADVERTENCIA: Falló descarga"
             fi
         fi
     done
-else
-    echo ">>> [6/9] No se detectó LORAS_URL. Saltando descargas individuales."
 fi
 
 # =================================================================================
-# 6.8. DESCARGA REPOSITORIO COMPLETO DE LORAS (REPO_WORKFLOW_LORAS)
+# 6.8. DESCARGA REPOSITORIO COMPLETO DE LORAS (REPO_WORKFLOW_LORAS - CLI GLOBAL)
 # =================================================================================
 if [ -n "$REPO_WORKFLOW_LORAS" ]; then
     echo ">>> [6.8/9] REPO_WORKFLOW_LORAS detectado: $REPO_WORKFLOW_LORAS"
-    echo "--> Preparando descarga masiva del repositorio a models/loras..."
+    echo "--> Usando HuggingFace CLI Global para descargar repositorio completo..."
 
     LORA_DIR="${COMFY_DIR}/models/loras"
     mkdir -p "$LORA_DIR"
 
-    # 1. Aseguramos el entorno virtual explícitamente
+    # IMPORTANTE: Desactivamos el venv momentáneamente para asegurar que usamos el CLI del sistema
+    # aunque normalmente huggingface-cli en /usr/local/bin tiene prioridad si el venv no tiene el comando.
+    deactivate 2>/dev/null || true
+    
+    # Comprobamos si el token está presente para el CLI
+    if [ -n "$HF_TOKEN" ]; then
+        echo "--> Descargando con autenticación..."
+        huggingface-cli download "$REPO_WORKFLOW_LORAS" \
+            --local-dir "$LORA_DIR" \
+            --local-dir-use-symlinks False \
+            --include "*.safetensors" "*.pt" "*.ckpt" \
+            || echo "ERROR CRÍTICO: Falló la descarga del repo con CLI."
+    else
+        echo "--> Descargando sin autenticación (público)..."
+        huggingface-cli download "$REPO_WORKFLOW_LORAS" \
+            --local-dir "$LORA_DIR" \
+            --local-dir-use-symlinks False \
+            --include "*.safetensors" "*.pt" "*.ckpt" \
+            || echo "ERROR CRÍTICO: Falló la descarga pública con CLI."
+    fi
+
+    # Reactivamos el entorno virtual para lo que sigue
     source "$VENV_DIR/bin/activate"
     
-    # 2. Instalamos/Actualizamos la librería necesaria
-    # Usamos el pip del entorno virtual directamente para evitar confusiones
-    "$VENV_DIR/bin/pip" install --upgrade huggingface_hub
-
-    # 3. Definimos el ejecutable de Python del entorno virtual
-    PY_EXEC="$VENV_DIR/bin/python"
-
-    # 4. Ejecución de la descarga
-    # Usamos 'python -m huggingface_hub.cli' en lugar del comando directo 'huggingface-cli'
-    # para evitar errores de PATH no actualizado.
-    
-    echo "--> Iniciando descarga con huggingface_hub..."
-    
-    if [ -n "$HF_TOKEN" ]; then
-        echo "--> Usando Token para descargar repo completo..."
-        "$PY_EXEC" -m huggingface_hub.cli download "$REPO_WORKFLOW_LORAS" \
-            --local-dir "$LORA_DIR" \
-            --token "$HF_TOKEN" \
-            --local-dir-use-symlinks False \
-            --include "*.safetensors" "*.pt" "*.ckpt" \
-            || echo "ERROR CRÍTICO: Falló la descarga del repositorio con Token."
-    else
-        echo "--> Token no detectado. Intentando descarga pública..."
-        "$PY_EXEC" -m huggingface_hub.cli download "$REPO_WORKFLOW_LORAS" \
-            --local-dir "$LORA_DIR" \
-            --local-dir-use-symlinks False \
-            --include "*.safetensors" "*.pt" "*.ckpt" \
-            || echo "ERROR CRÍTICO: Falló la descarga pública del repositorio."
-    fi
-    
-    echo "--> Proceso de descarga de repositorio finalizado."
-    
-    # Listar archivos para verificar si descargó algo (útil para logs)
-    echo "--> Contenido descargado en $LORA_DIR:"
-    ls -lh "$LORA_DIR" | head -n 10
+    echo "--> Descarga de repositorio finalizada."
 else
-    echo ">>> [6.8/9] No se detectó REPO_WORKFLOW_LORAS. Saltando descarga de repo."
+    echo ">>> [6.8/9] No se detectó REPO_WORKFLOW_LORAS. Saltando."
 fi
 
 # =================================================================================
-# 6.9. DESCARGA DE MODELOS PRIVADOS/GATED (Token de RunPod)
+# 6.9. DESCARGA DE MODELOS PRIVADOS/GATED (WGET)
 # =================================================================================
 echo ">>> [7/9] Verificando modelos Checkpoints privados..."
-
 if [ -n "$HF_TOKEN" ] && [ ${#GATED_MODELS_URLS[@]} -gt 0 ]; then
-    echo "--> Token detectado. Iniciando descarga de modelos restringidos..."
-    
     CHECKPOINT_DIR="${COMFY_DIR}/models/checkpoints"
     mkdir -p "$CHECKPOINT_DIR"
     cd "$CHECKPOINT_DIR"
@@ -230,58 +220,27 @@ if [ -n "$HF_TOKEN" ] && [ ${#GATED_MODELS_URLS[@]} -gt 0 ]; then
         clean_url=$(echo "$url" | xargs)
         if [ -n "$clean_url" ]; then
             echo "--> Descargando Modelo Privado: $clean_url"
-            wget --header "Authorization: Bearer $HF_TOKEN" --content-disposition "$clean_url" || echo "ERROR: Falló la descarga autenticada de $clean_url"
+            wget --header "Authorization: Bearer $HF_TOKEN" --content-disposition "$clean_url" || echo "ERROR: Falló descarga"
         fi
     done
-else
-    if [ -z "$HF_TOKEN" ]; then
-        echo "--> SALTANDO: No se detectó la variable de entorno RUNPOD_SECRET_hf_tk."
-    elif [ ${#GATED_MODELS_URLS[@]} -eq 0 ]; then
-        echo "--> SALTANDO: La lista GATED_MODELS_URLS está vacía."
-    fi
 fi
 
 # =================================================================================
 # DESCARGA CONDICIONAL DE MODELOS (QWEN / FLUX)
-# Variables:
-#   DOWNLOAD_QWEN=1
-#   DOWNLOAD_FLUX=1
 # =================================================================================
-
 cd "$COMFY_DIR"
 
-# -------------------------
-# QWEN IMAGE
-# -------------------------
 if [ "${DOWNLOAD_QWEN:-0}" = "1" ]; then
-    echo "============================================================"
     echo ">>> DOWNLOAD_QWEN=1 detectado → Descargando modelos Qwen Image"
-    echo "============================================================"
-
-    bash <(curl -fsSL \
-      https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_qwen.sh)
-
-else
-    echo ">>> DOWNLOAD_QWEN no definido o distinto de 1. Saltando Qwen."
+    bash <(curl -fsSL https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_qwen.sh)
 fi
 
-# -------------------------
-# FLUX
-# -------------------------
 if [ "${DOWNLOAD_FLUX:-0}" = "1" ]; then
-    echo "============================================================"
     echo ">>> DOWNLOAD_FLUX=1 detectado → Descargando modelos Flux"
-    echo "============================================================"
-
-    bash <(curl -fsSL \
-      https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_flux.sh)
-
-else
-    echo ">>> DOWNLOAD_FLUX no definido o distinto de 1. Saltando Flux."
+    bash <(curl -fsSL https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_flux.sh)
 fi
 
-
-# ================================wwww=================================================
+# =================================================================================
 # 7. CONFIGURACIÓN YAML
 # =================================================================================
 echo ">>> [8/9] Generando configuración de rutas..."
