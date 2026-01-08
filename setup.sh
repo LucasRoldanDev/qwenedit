@@ -172,23 +172,44 @@ if [ -n "$REPO_WORKFLOW_LORAS" ]; then
     LORA_DIR="${COMFY_DIR}/models/loras"
     mkdir -p "$LORA_DIR"
 
-    # Activamos entorno para asegurar acceso a pip
+    # 1. Aseguramos el entorno virtual explícitamente
     source "$VENV_DIR/bin/activate"
     
-    # Instalamos huggingface_hub si no está (es ligero y necesario para descargar repos enteros)
-    pip install huggingface_hub
+    # 2. Instalamos/Actualizamos la librería necesaria
+    # Usamos el pip del entorno virtual directamente para evitar confusiones
+    "$VENV_DIR/bin/pip" install --upgrade huggingface_hub
 
-    # Comando de descarga
-    # --local-dir-use-symlinks False: Para que descargue los archivos reales y no enlaces simbólicos al caché
+    # 3. Definimos el ejecutable de Python del entorno virtual
+    PY_EXEC="$VENV_DIR/bin/python"
+
+    # 4. Ejecución de la descarga
+    # Usamos 'python -m huggingface_hub.cli' en lugar del comando directo 'huggingface-cli'
+    # para evitar errores de PATH no actualizado.
+    
+    echo "--> Iniciando descarga con huggingface_hub..."
+    
     if [ -n "$HF_TOKEN" ]; then
         echo "--> Usando Token para descargar repo completo..."
-        huggingface-cli download "$REPO_WORKFLOW_LORAS" --local-dir "$LORA_DIR" --token "$HF_TOKEN" --local-dir-use-symlinks False --include "*.safetensors"
+        "$PY_EXEC" -m huggingface_hub.cli download "$REPO_WORKFLOW_LORAS" \
+            --local-dir "$LORA_DIR" \
+            --token "$HF_TOKEN" \
+            --local-dir-use-symlinks False \
+            --include "*.safetensors" "*.pt" "*.ckpt" \
+            || echo "ERROR CRÍTICO: Falló la descarga del repositorio con Token."
     else
         echo "--> Token no detectado. Intentando descarga pública..."
-        huggingface-cli download "$REPO_WORKFLOW_LORAS" --local-dir "$LORA_DIR" --local-dir-use-symlinks False --include "*.safetensors"
+        "$PY_EXEC" -m huggingface_hub.cli download "$REPO_WORKFLOW_LORAS" \
+            --local-dir "$LORA_DIR" \
+            --local-dir-use-symlinks False \
+            --include "*.safetensors" "*.pt" "*.ckpt" \
+            || echo "ERROR CRÍTICO: Falló la descarga pública del repositorio."
     fi
     
-    echo "--> Descarga de repositorio finalizada."
+    echo "--> Proceso de descarga de repositorio finalizado."
+    
+    # Listar archivos para verificar si descargó algo (útil para logs)
+    echo "--> Contenido descargado en $LORA_DIR:"
+    ls -lh "$LORA_DIR" | head -n 10
 else
     echo ">>> [6.8/9] No se detectó REPO_WORKFLOW_LORAS. Saltando descarga de repo."
 fi
