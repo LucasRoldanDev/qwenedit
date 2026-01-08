@@ -24,12 +24,9 @@ fi
 
 # ---------------------------------------------------------------------------------
 # LISTA DE MODELOS RESTRINGIDOS/GATED (MODIFICAR AQUÍ)
-# Añade las URLs de descarga directa (resolve/main/...)
 # ---------------------------------------------------------------------------------
 GATED_MODELS_URLS=(
     # Ejemplo: "https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/flux1-dev.safetensors"
-    # Añade tus líneas abajo:
-    
 )
 
 # Array con todos los Custom Nodes
@@ -138,11 +135,10 @@ for dir in */; do
 done
 
 # =================================================================================
-# 6. DESCARGA DE LORAS EXTRA (Variable LORAS_URL)
+# 6. DESCARGA DE LORAS SUELTOS (Variable LORAS_URL)
 # =================================================================================
-# Se usa el token también aquí por si se descargan Loras privados de HF
 if [ -n "$LORAS_URL" ]; then
-    echo ">>> [6/9] Argumento LORAS_URL detectado. Procesando descargas..."
+    echo ">>> [6/9] Argumento LORAS_URL detectado. Procesando descargas individuales..."
     
     LORA_DIR="${COMFY_DIR}/models/loras"
     mkdir -p "$LORA_DIR"
@@ -163,18 +159,48 @@ if [ -n "$LORAS_URL" ]; then
         fi
     done
 else
-    echo ">>> [6/9] No se detectó LORAS_URL. Saltando descargas extra."
+    echo ">>> [6/9] No se detectó LORAS_URL. Saltando descargas individuales."
 fi
 
 # =================================================================================
-# 6.5. DESCARGA DE MODELOS PRIVADOS (Token de RunPod)
+# 6.8. DESCARGA REPOSITORIO COMPLETO DE LORAS (REPO_WORKFLOW_LORAS)
 # =================================================================================
-echo ">>> [7/9] Verificando modelos privados (Gated Models)..."
+if [ -n "$REPO_WORKFLOW_LORAS" ]; then
+    echo ">>> [6.8/9] REPO_WORKFLOW_LORAS detectado: $REPO_WORKFLOW_LORAS"
+    echo "--> Preparando descarga masiva del repositorio a models/loras..."
+
+    LORA_DIR="${COMFY_DIR}/models/loras"
+    mkdir -p "$LORA_DIR"
+
+    # Activamos entorno para asegurar acceso a pip
+    source "$VENV_DIR/bin/activate"
+    
+    # Instalamos huggingface_hub si no está (es ligero y necesario para descargar repos enteros)
+    pip install huggingface_hub
+
+    # Comando de descarga
+    # --local-dir-use-symlinks False: Para que descargue los archivos reales y no enlaces simbólicos al caché
+    if [ -n "$HF_TOKEN" ]; then
+        echo "--> Usando Token para descargar repo completo..."
+        huggingface-cli download "$REPO_WORKFLOW_LORAS" --local-dir "$LORA_DIR" --token "$HF_TOKEN" --local-dir-use-symlinks False --include "*.safetensors"
+    else
+        echo "--> Token no detectado. Intentando descarga pública..."
+        huggingface-cli download "$REPO_WORKFLOW_LORAS" --local-dir "$LORA_DIR" --local-dir-use-symlinks False --include "*.safetensors"
+    fi
+    
+    echo "--> Descarga de repositorio finalizada."
+else
+    echo ">>> [6.8/9] No se detectó REPO_WORKFLOW_LORAS. Saltando descarga de repo."
+fi
+
+# =================================================================================
+# 6.9. DESCARGA DE MODELOS PRIVADOS/GATED (Token de RunPod)
+# =================================================================================
+echo ">>> [7/9] Verificando modelos Checkpoints privados..."
 
 if [ -n "$HF_TOKEN" ] && [ ${#GATED_MODELS_URLS[@]} -gt 0 ]; then
     echo "--> Token detectado. Iniciando descarga de modelos restringidos..."
     
-    # Por defecto los descargamos en checkpoints
     CHECKPOINT_DIR="${COMFY_DIR}/models/checkpoints"
     mkdir -p "$CHECKPOINT_DIR"
     cd "$CHECKPOINT_DIR"
