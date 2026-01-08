@@ -9,7 +9,7 @@ VENV_DIR="${COMFY_DIR}/venv"
 SAGE_WHEEL="sageattention-2.1.1-cp312-cp312-linux_x86_64.whl"
 SAGE_URL="https://huggingface.co/nitin19/flash-attention-wheels/resolve/main/$SAGE_WHEEL"
 
-# Captura del secreto de RunPod y exportación para que 'hf' lo detecte automáticamente
+# Captura del secreto de RunPod y exportación
 export HF_TOKEN="$RUNPOD_SECRET_hf_tk"
 
 if [ -n "$HF_TOKEN" ]; then
@@ -23,7 +23,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------------
-# LISTA DE MODELOS RESTRINGIDOS/GATED (URLs directas para wget)
+# LISTA DE MODELOS RESTRINGIDOS/GATED
 # ---------------------------------------------------------------------------------
 GATED_MODELS_URLS=(
     # Ejemplo: "https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/flux1-dev.safetensors"
@@ -50,7 +50,6 @@ NODES_URLS=(
 # =================================================================================
 echo ">>> [1/9] Actualizando sistema e instalando dependencias base..."
 apt update && apt upgrade -y
-# Eliminamos cualquier intento de instalar herramientas HF, solo deps de sistema
 apt install -y software-properties-common build-essential git python3-pip wget cmake pkg-config ninja-build
 
 # =================================================================================
@@ -135,7 +134,6 @@ done
 # =================================================================================
 # 6. DESCARGAS INDIVIDUALES (WGET)
 # =================================================================================
-# 6.1 LORAS SUELTOS
 if [ -n "$LORAS_URL" ]; then
     echo ">>> [6/9] LORAS_URL detectado. Descargando archivos sueltos..."
     LORA_DIR="${COMFY_DIR}/models/loras"
@@ -156,7 +154,6 @@ if [ -n "$LORAS_URL" ]; then
     done
 fi
 
-# 6.2 MODELOS PRIVADOS (GATED)
 echo ">>> [7/9] Verificando modelos Checkpoints privados..."
 if [ -n "$HF_TOKEN" ] && [ ${#GATED_MODELS_URLS[@]} -gt 0 ]; then
     CHECKPOINT_DIR="${COMFY_DIR}/models/checkpoints"
@@ -172,7 +169,6 @@ if [ -n "$HF_TOKEN" ] && [ ${#GATED_MODELS_URLS[@]} -gt 0 ]; then
     done
 fi
 
-# 6.3 CONDICIONALES (QWEN/FLUX)
 cd "$COMFY_DIR"
 if [ "${DOWNLOAD_QWEN:-0}" = "1" ]; then
     echo ">>> DOWNLOAD_QWEN=1 detectado"
@@ -186,35 +182,36 @@ fi
 
 
 # =================================================================================
-# 8. DESCARGA FINAL DE REPOSITORIO (USANDO COMANDO NATIVO 'hf')
+# 8. DESCARGA FINAL DE REPOSITORIO (GLOBAL PIP + HF)
 # =================================================================================
-# Se ejecuta aquí al final, antes de la configuración y arranque.
 if [ -n "$REPO_WORKFLOW_LORAS" ]; then
-    echo ">>> [8/9] Descargando repositorio completo con herramienta nativa 'hf'..."
+    echo ">>> [8/9] Preparando descarga de repositorio..."
     
     LORA_DIR="${COMFY_DIR}/models/loras"
     mkdir -p "$LORA_DIR"
 
-    # --- PROTECCIÓN DE ENTORNO ---
-    # Desactivamos momentáneamente el venv de ComfyUI (Python 3.12)
-    # para usar el 'hf' del sistema (que usa el Python original del sistema)
-    # y evitar conflictos de librerías.
+    # ------------------------------------------------------------------
+    # CAMBIO SOLICITADO: Desactivar Venv, Instalar Pip Global, Ejecutar HF
+    # ------------------------------------------------------------------
+    
+    # 1. Salir del entorno virtual de ComfyUI para usar el entorno global
     deactivate 2>/dev/null || true
     
-    echo "--> Ejecutando comando hf del sistema..."
+    echo "--> Instalando huggingface_hub globalmente antes de la descarga..."
     
-    if command -v hf &> /dev/null; then
-        # Nota: El token se toma automáticamente de la variable de entorno HF_TOKEN exportada arriba
-        hf download "$REPO_WORKFLOW_LORAS" \
-            --local-dir "$LORA_DIR" \
-            --local-dir-use-symlinks False \
-            --include "*.safetensors" "*.pt" "*.ckpt" \
-            || echo "ERROR CRÍTICO: Falló la descarga con 'hf'."
-    else
-        echo "ERROR: El comando 'hf' no se encontró en el sistema."
-    fi
+    # Intentamos instalar. Usamos --break-system-packages por compatibilidad con Linux modernos en Docker
+    pip install huggingface_hub --break-system-packages || pip install huggingface_hub
+    
+    echo "--> Ejecutando descarga con 'hf'..."
+    
+    # Ejecutamos hf (El token se toma de la variable de entorno exportada arriba)
+    hf download "$REPO_WORKFLOW_LORAS" \
+        --local-dir "$LORA_DIR" \
+        --local-dir-use-symlinks False \
+        --include "*.safetensors" "*.pt" "*.ckpt" \
+        || echo "ERROR CRÍTICO: Falló la descarga del repositorio."
 
-    # Reactivamos el entorno virtual para arrancar ComfyUI
+    # 2. Reactivamos el entorno virtual para arrancar ComfyUI
     source "$VENV_DIR/bin/activate"
     echo "--> Descarga de repositorio finalizada."
 
