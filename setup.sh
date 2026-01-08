@@ -221,6 +221,46 @@ else
 fi
 
 # =================================================================================
+# DESCARGA CONDICIONAL DE MODELOS (QWEN / FLUX)
+# Variables:
+#   DOWNLOAD_QWEN=1
+#   DOWNLOAD_FLUX=1
+# =================================================================================
+
+cd "$COMFY_DIR"
+
+# -------------------------
+# QWEN IMAGE
+# -------------------------
+if [ "${DOWNLOAD_QWEN:-0}" = "1" ]; then
+    echo "============================================================"
+    echo ">>> DOWNLOAD_QWEN=1 detectado → Descargando modelos Qwen Image"
+    echo "============================================================"
+
+    bash <(curl -fsSL \
+      https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_qwen.sh)
+
+else
+    echo ">>> DOWNLOAD_QWEN no definido o distinto de 1. Saltando Qwen."
+fi
+
+# -------------------------
+# FLUX
+# -------------------------
+if [ "${DOWNLOAD_FLUX:-0}" = "1" ]; then
+    echo "============================================================"
+    echo ">>> DOWNLOAD_FLUX=1 detectado → Descargando modelos Flux"
+    echo "============================================================"
+
+    bash <(curl -fsSL \
+      https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_flux.sh)
+
+else
+    echo ">>> DOWNLOAD_FLUX no definido o distinto de 1. Saltando Flux."
+fi
+
+
+# ================================wwww=================================================
 # 7. CONFIGURACIÓN YAML
 # =================================================================================
 echo ">>> [8/9] Generando configuración de rutas..."
