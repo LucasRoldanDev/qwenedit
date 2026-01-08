@@ -30,6 +30,26 @@ Para descargar modelos privados (como FLUX.1 Dev) o repositorios restringidos, n
 
 > **Nota:** El script busca específicamente la variable `RUNPOD_SECRET_hf_tk`. Si no la encuentra, omitirá las descargas que requieran permisos, pero instalará ComfyUI normalmente.
 
+### 2. Selección de Modelos a Descargar (Qwen / Flux)
+
+El script permite **elegir qué stack de modelos descargar** usando variables de entorno.  
+Esto es ideal para RunPod, ya que puedes definirlas **desde la interfaz antes de lanzar el Pod**.
+
+#### Variables disponibles
+
+| Variable          | Valor | Comportamiento                                   |
+|-------------------|-------|--------------------------------------------------|
+| `DOWNLOAD_QWEN`   | `1`   | Descarga los modelos **Qwen Image / Qwen Edit** |
+| `DOWNLOAD_FLUX`   | `1`   | Descarga los modelos **Flux**                   |
+| No definida       | —     | Se ignora completamente                          |
+| Distinto de `1`   | —     | Se ignora                                       |
+
+> ⚠️ Solo el valor **exacto `1`** activa la descarga para evitar descargas accidentales.
+
+#### Ejemplos en RunPod
+
+**Solo Qwen Image**
+
 ### 2. Descarga de LoRAs Específicos (`LORAS_URL`)
 Si deseas descargar archivos individuales (.safetensors) al iniciar:
 
