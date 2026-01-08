@@ -9,7 +9,8 @@ VENV_DIR="${COMFY_DIR}/venv"
 SAGE_WHEEL="sageattention-2.1.1-cp312-cp312-linux_x86_64.whl"
 SAGE_URL="https://huggingface.co/nitin19/flash-attention-wheels/resolve/main/$SAGE_WHEEL"
 
-# Array con Custom Nodes (HE QUITADO GGUF DE AQUÍ PARA INSTALARLO MANUALMENTE)
+# Array con Custom Nodes
+# AÑADIDO: city96/ComfyUI-GGUF (El soporte principal de GGUF)
 NODES_URLS=(
     "https://github.com/ltdrdata/ComfyUI-Manager.git"
     "https://github.com/yolain/ComfyUI-Easy-Use.git"
@@ -20,6 +21,7 @@ NODES_URLS=(
     "https://github.com/pythongosssss/ComfyUI-Custom-Scripts.git"
     "https://github.com/lquesada/ComfyUI-Inpaint-CropAndStitch.git"
     "https://github.com/melMass/comfy_mtb.git"
+    "https://github.com/city96/ComfyUI-GGUF.git"
     "https://github.com/ClownsharkBatwing/RES4LYF.git"
 )
 
@@ -89,12 +91,14 @@ cd "$COMFY_DIR"
 pip install -r requirements.txt
 
 # =================================================================================
-# 5. INSTALACIÓN DE CUSTOM NODES (General)
+# 5. INSTALACIÓN DE CUSTOM NODES (Lista Automática)
 # =================================================================================
-echo ">>> [5/9] Instalando Nodos Personalizados..."
+echo ">>> [5/9] Instalando Nodos Personalizados (Incluido city96/GGUF)..."
 mkdir -p custom_nodes && cd custom_nodes
 
-# Instalación del loop general
+# Instalamos la librería gguf de python necesaria para city96 y calcuis
+pip install gguf
+
 for repo_url in "${NODES_URLS[@]}"; do
     dir_name=$(basename "$repo_url" .git)
     if [ ! -d "$dir_name" ]; then
@@ -106,20 +110,18 @@ for repo_url in "${NODES_URLS[@]}"; do
 done
 
 # =================================================================================
-# 6. INSTALACIÓN MANUAL DE GGUF (Corrección Específica)
+# 6. INSTALACIÓN MANUAL DE CALCUIS GGUF (Evitar conflicto)
 # =================================================================================
-echo ">>> [6/9] Instalando Node GGUF (Manual)..."
+# Nota: city96 ya se instaló arriba como 'ComfyUI-GGUF'. 
+# Aquí instalamos calcuis con otro nombre para tener ambos.
+echo ">>> [6/9] Instalando Node GGUF (Calcuis Version)..."
 cd "$COMFY_DIR/custom_nodes"
 
-# Instalamos la librería pip primero para evitar errores de importación
-pip install gguf
-
-# Clonamos el repo pero forzamos el nombre de carpeta a 'ComfyUI-GGUF' para evitar conflictos
-if [ ! -d "ComfyUI-GGUF" ]; then
-    echo "Clonando GGUF Node como ComfyUI-GGUF..."
-    git clone --depth 1 https://github.com/calcuis/gguf.git ComfyUI-GGUF
+if [ ! -d "ComfyUI-GGUF-Calcuis" ]; then
+    echo "Clonando Calcuis GGUF como ComfyUI-GGUF-Calcuis..."
+    git clone --depth 1 https://github.com/calcuis/gguf.git ComfyUI-GGUF-Calcuis
 else
-    echo "ComfyUI-GGUF ya existe."
+    echo "ComfyUI-GGUF-Calcuis ya existe."
 fi
 
 # Instalación de dependencias de todos los nodos
@@ -191,10 +193,6 @@ EOF
 echo ">>> [9/9] Iniciando ComfyUI..."
 chmod +x main.py
 source "$VENV_DIR/bin/activate"
-
-# Verificar GGUF
-echo "Verificando carpeta GGUF:"
-ls -d custom_nodes/ComfyUI-GGUF || echo "ERROR: No se encontró la carpeta ComfyUI-GGUF"
 
 # Ejecutar
 python main.py --use-sage-attention --listen --port 3001 --preview-method latent2rgb
