@@ -9,7 +9,7 @@ VENV_DIR="${COMFY_DIR}/venv"
 SAGE_WHEEL="sageattention-2.1.1-cp312-cp312-linux_x86_64.whl"
 SAGE_URL="https://huggingface.co/nitin19/flash-attention-wheels/resolve/main/$SAGE_WHEEL"
 
-# Array con todos los Custom Nodes (Evita código repetido)
+# Array con todos los Custom Nodes
 NODES_URLS=(
     "https://github.com/ltdrdata/ComfyUI-Manager.git"
     "https://github.com/yolain/ComfyUI-Easy-Use.git"
@@ -27,34 +27,30 @@ NODES_URLS=(
 # =================================================================================
 # 1. PREPARACIÓN DEL SISTEMA Y PYTHON 3.12
 # =================================================================================
-echo ">>> [1/7] Actualizando sistema e instalando dependencias base..."
+echo ">>> [1/8] Actualizando sistema e instalando dependencias base..."
 apt update && apt upgrade -y
 apt install -y software-properties-common build-essential git python3-pip wget cmake pkg-config ninja-build
 
-# Nota: Aunque Ubuntu 24.04 trae Python 3.12, ejecutamos esto para asegurar el entorno dev
 add-apt-repository ppa:deadsnakes/ppa -y || echo "PPA ya existe o no es necesario"
 apt update
 apt install -y python3.12 python3.12-venv python3.12-dev
 
-# Forzar Python 3.12 como predeterminado
 update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
 update-alternatives --set python3 /usr/bin/python3.12
 
 echo ">>> Versión de Python del sistema: $(python3 --version)"
 
-# Limpieza de puertos (Nginx/3001)
 systemctl stop nginx 2>/dev/null || true
 pkill -f nginx || true
 fuser -k 3001/tcp || true
 
 # =================================================================================
-# 2. INSTALACIÓN DE COMFYUI (OBLIGATORIO)
+# 2. INSTALACIÓN DE COMFYUI
 # =================================================================================
-echo ">>> [2/7] Instalando ComfyUI..."
+echo ">>> [2/8] Instalando ComfyUI..."
 mkdir -p "$WORKSPACE"
 cd "$WORKSPACE"
 
-# Si existe la carpeta, la borramos para asegurar una instalación limpia (opcional, pero recomendado si quieres garantizar que funcione)
 if [ -d "$COMFY_DIR" ]; then
     echo "Carpeta ComfyUI detectada. Actualizando..."
     cd "$COMFY_DIR" && git pull
@@ -65,9 +61,8 @@ fi
 # =================================================================================
 # 3. CREACIÓN DEL ENTORNO VIRTUAL
 # =================================================================================
-echo ">>> [3/7] Creando entorno virtual (venv)..."
+echo ">>> [3/8] Creando entorno virtual (venv)..."
 cd "$COMFY_DIR"
-# Recreamos el venv para asegurar que esté limpio
 rm -rf venv
 python3 -m venv venv
 source venv/bin/activate
@@ -76,38 +71,28 @@ echo ">>> Versión de Python en venv: $(python --version)"
 pip install --upgrade pip
 
 # =================================================================================
-# 4. INSTALACIÓN DE PYTORCH Y SAGEATTENTION (OBLIGATORIO)
+# 4. INSTALACIÓN DE PYTORCH Y SAGEATTENTION
 # =================================================================================
-echo ">>> [4/7] Instalando PyTorch 2.7 y SageAttention..."
-
-# Instalar PyTorch 2.7.0 con CUDA 12.8
+echo ">>> [4/8] Instalando PyTorch 2.7 y SageAttention..."
 pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/cu128
-
-# Instalar dependencias previas
 pip install triton packaging
 
-# --- AQUI SE INSTALA SAGEATTENTION ---
+# SageAttention
 cd "$WORKSPACE"
-echo "Descargando SageAttention Wheel..."
-rm -f "$SAGE_WHEEL" # Borrar si existía uno corrupto
+rm -f "$SAGE_WHEEL"
 wget "$SAGE_URL"
-
-echo "Instalando SageAttention..."
 pip install "./$SAGE_WHEEL"
 
-# Verificar instalación
-echo "Verificando instalaciones críticas:"
 python -c 'import torch; print(f"Torch: {torch.__version__}, CUDA: {torch.version.cuda}")'
 python -c 'import sageattention; print("SageAttention instalado correctamente")' || echo "ERROR: Falló SageAttention"
 
-# Instalar requisitos base de ComfyUI
 cd "$COMFY_DIR"
 pip install -r requirements.txt
 
 # =================================================================================
-# 5. INSTALACIÓN DE CUSTOM NODES (Usando Array)
+# 5. INSTALACIÓN DE CUSTOM NODES
 # =================================================================================
-echo ">>> [5/7] Instalando Nodos Personalizados..."
+echo ">>> [5/8] Instalando Nodos Personalizados..."
 mkdir -p custom_nodes && cd custom_nodes
 
 for repo_url in "${NODES_URLS[@]}"; do
@@ -120,7 +105,6 @@ for repo_url in "${NODES_URLS[@]}"; do
     fi
 done
 
-# Instalar requirements.txt de cada nodo automáticamente
 echo ">>> Instalando dependencias de los nodos..."
 for dir in */; do
     if [ -f "${dir}requirements.txt" ]; then
@@ -130,9 +114,37 @@ for dir in */; do
 done
 
 # =================================================================================
-# 6. CONFIGURACIÓN YAML
+# 6. DESCARGA DE LORAS EXTRA (Argumento LORAS_URL)
 # =================================================================================
-echo ">>> [6/7] Generando configuración de rutas..."
+# Aquí verificamos si la variable LORAS_URL existe y no está vacía (-n)
+if [ -n "$LORAS_URL" ]; then
+    echo ">>> [6/8] Argumento LORAS_URL detectado. Procesando descargas..."
+    
+    LORA_DIR="${COMFY_DIR}/models/loras"
+    mkdir -p "$LORA_DIR"
+    cd "$LORA_DIR"
+
+    # Cambiamos el separador interno a coma para leer la lista
+    IFS=',' read -ra ADDR <<< "$LORAS_URL"
+    
+    for url in "${ADDR[@]}"; do
+        # Limpiamos espacios en blanco al inicio o final de la url (trim)
+        clean_url=$(echo "$url" | xargs)
+        
+        if [ -n "$clean_url" ]; then
+            echo "--> Descargando: $clean_url"
+            # --content-disposition: Fundamental para links de HuggingFace que no terminan en .safetensors
+            wget --content-disposition "$clean_url" || echo "ADVERTENCIA: Falló descarga de $clean_url"
+        fi
+    done
+else
+    echo ">>> [6/8] No se detectó LORAS_URL. Saltando descargas extra."
+fi
+
+# =================================================================================
+# 7. CONFIGURACIÓN YAML
+# =================================================================================
+echo ">>> [7/8] Generando configuración de rutas..."
 cd "$COMFY_DIR"
 cat <<EOF > extra_model_paths.yaml
 comfyui:
@@ -163,13 +175,11 @@ comfyui:
 EOF
 
 # =================================================================================
-# 7. EJECUCIÓN
+# 8. EJECUCIÓN
 # =================================================================================
-echo ">>> [7/7] Iniciando ComfyUI..."
+echo ">>> [8/8] Iniciando ComfyUI..."
 chmod +x main.py
-
-# Asegurar que estamos en el venv antes de lanzar
 source "$VENV_DIR/bin/activate"
 
-# Lanzar con SageAttention activado
+# Ejecutar
 python main.py --use-sage-attention --listen --port 3001 --preview-method latent2rgb
