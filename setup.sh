@@ -9,21 +9,21 @@ VENV_DIR="${COMFY_DIR}/venv"
 SAGE_WHEEL="sageattention-2.1.1-cp312-cp312-linux_x86_64.whl"
 SAGE_URL="https://huggingface.co/nitin19/flash-attention-wheels/resolve/main/$SAGE_WHEEL"
 
-# Captura del secreto de RunPod y exportación para que el CLI lo detecte globalmente
+# Captura del secreto de RunPod y exportación para que 'hf' lo detecte automáticamente
 export HF_TOKEN="$RUNPOD_SECRET_hf_tk"
 
 if [ -n "$HF_TOKEN" ]; then
     echo "================================================================="
-    echo "TOKEN ENCONTRADO Y EXPORTADO. Descargas privadas habilitadas."
+    echo "TOKEN ENCONTRADO. Se utilizará para descargas."
     echo "================================================================="
 else
     echo "================================================================="
-    echo "TOKEN NO ENCONTRADO: Se omitirán los modelos que requieran autenticación."
+    echo "TOKEN NO ENCONTRADO. Se omitirán descargas privadas."
     echo "================================================================="
 fi
 
 # ---------------------------------------------------------------------------------
-# LISTA DE MODELOS RESTRINGIDOS/GATED (MODIFICAR AQUÍ)
+# LISTA DE MODELOS RESTRINGIDOS/GATED (URLs directas para wget)
 # ---------------------------------------------------------------------------------
 GATED_MODELS_URLS=(
     # Ejemplo: "https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/flux1-dev.safetensors"
@@ -46,26 +46,16 @@ NODES_URLS=(
 )
 
 # =================================================================================
-# 1. PREPARACIÓN DEL SISTEMA, DEPENDENCIAS GLOBALES Y PYTHON 3.12
+# 1. PREPARACIÓN DEL SISTEMA
 # =================================================================================
 echo ">>> [1/9] Actualizando sistema e instalando dependencias base..."
 apt update && apt upgrade -y
+# Eliminamos cualquier intento de instalar herramientas HF, solo deps de sistema
 apt install -y software-properties-common build-essential git python3-pip wget cmake pkg-config ninja-build
 
-# --- INSTALACIÓN DEL CLI DE HUGGINGFACE A NIVEL DE SISTEMA ---
-# Lo instalamos AHORA, usando el python por defecto del sistema (3.10 usualmente),
-# ANTES de instalar Python 3.12. Esto aísla la herramienta del entorno de ComfyUI.
-echo ">>> Instalando HuggingFace CLI globalmente..."
-pip3 install -U "huggingface_hub[cli]" --break-system-packages || pip3 install -U "huggingface_hub[cli]"
-
-# Verificación rápida
-if command -v huggingface-cli &> /dev/null; then
-    echo ">>> HuggingFace CLI instalado correctamente: $(huggingface-cli --version)"
-else
-    echo ">>> ADVERTENCIA: No se pudo instalar huggingface-cli globalmente."
-fi
-
-# --- INSTALACIÓN DE PYTHON 3.12 PARA COMFYUI ---
+# =================================================================================
+# 2. INSTALACIÓN DE PYTHON 3.12
+# =================================================================================
 add-apt-repository ppa:deadsnakes/ppa -y || echo "PPA ya existe o no es necesario"
 apt update
 apt install -y python3.12 python3.12-venv python3.12-dev
@@ -73,14 +63,14 @@ apt install -y python3.12 python3.12-venv python3.12-dev
 update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
 update-alternatives --set python3 /usr/bin/python3.12
 
-echo ">>> Versión de Python activa (para venv): $(python3 --version)"
+echo ">>> Versión de Python activa (Sistema): $(python3 --version)"
 
 systemctl stop nginx 2>/dev/null || true
 pkill -f nginx || true
 fuser -k 3001/tcp || true
 
 # =================================================================================
-# 2. INSTALACIÓN DE COMFYUI
+# 3. INSTALACIÓN DE COMFYUI Y VENV
 # =================================================================================
 echo ">>> [2/9] Instalando ComfyUI..."
 mkdir -p "$WORKSPACE"
@@ -93,16 +83,13 @@ else
     git clone https://github.com/comfyanonymous/ComfyUI.git
 fi
 
-# =================================================================================
-# 3. CREACIÓN DEL ENTORNO VIRTUAL
-# =================================================================================
 echo ">>> [3/9] Creando entorno virtual (venv)..."
 cd "$COMFY_DIR"
 rm -rf venv
 python3 -m venv venv
 source venv/bin/activate
 
-echo ">>> Versión de Python en venv: $(python --version)"
+echo ">>> Versión de Python en venv Comfy: $(python --version)"
 pip install --upgrade pip
 
 # =================================================================================
@@ -146,8 +133,9 @@ for dir in */; do
 done
 
 # =================================================================================
-# 6. DESCARGA DE LORAS SUELTOS (Variable LORAS_URL - WGET)
+# 6. DESCARGAS INDIVIDUALES (WGET)
 # =================================================================================
+# 6.1 LORAS SUELTOS
 if [ -n "$LORAS_URL" ]; then
     echo ">>> [6/9] LORAS_URL detectado. Descargando archivos sueltos..."
     LORA_DIR="${COMFY_DIR}/models/loras"
@@ -168,48 +156,7 @@ if [ -n "$LORAS_URL" ]; then
     done
 fi
 
-# =================================================================================
-# 6.8. DESCARGA REPOSITORIO COMPLETO DE LORAS (REPO_WORKFLOW_LORAS - CLI GLOBAL)
-# =================================================================================
-if [ -n "$REPO_WORKFLOW_LORAS" ]; then
-    echo ">>> [6.8/9] REPO_WORKFLOW_LORAS detectado: $REPO_WORKFLOW_LORAS"
-    echo "--> Usando HuggingFace CLI Global para descargar repositorio completo..."
-
-    LORA_DIR="${COMFY_DIR}/models/loras"
-    mkdir -p "$LORA_DIR"
-
-    # IMPORTANTE: Desactivamos el venv momentáneamente para asegurar que usamos el CLI del sistema
-    # aunque normalmente huggingface-cli en /usr/local/bin tiene prioridad si el venv no tiene el comando.
-    deactivate 2>/dev/null || true
-    
-    # Comprobamos si el token está presente para el CLI
-    if [ -n "$HF_TOKEN" ]; then
-        echo "--> Descargando con autenticación..."
-        huggingface-cli download "$REPO_WORKFLOW_LORAS" \
-            --local-dir "$LORA_DIR" \
-            --local-dir-use-symlinks False \
-            --include "*.safetensors" "*.pt" "*.ckpt" \
-            || echo "ERROR CRÍTICO: Falló la descarga del repo con CLI."
-    else
-        echo "--> Descargando sin autenticación (público)..."
-        huggingface-cli download "$REPO_WORKFLOW_LORAS" \
-            --local-dir "$LORA_DIR" \
-            --local-dir-use-symlinks False \
-            --include "*.safetensors" "*.pt" "*.ckpt" \
-            || echo "ERROR CRÍTICO: Falló la descarga pública con CLI."
-    fi
-
-    # Reactivamos el entorno virtual para lo que sigue
-    source "$VENV_DIR/bin/activate"
-    
-    echo "--> Descarga de repositorio finalizada."
-else
-    echo ">>> [6.8/9] No se detectó REPO_WORKFLOW_LORAS. Saltando."
-fi
-
-# =================================================================================
-# 6.9. DESCARGA DE MODELOS PRIVADOS/GATED (WGET)
-# =================================================================================
+# 6.2 MODELOS PRIVADOS (GATED)
 echo ">>> [7/9] Verificando modelos Checkpoints privados..."
 if [ -n "$HF_TOKEN" ] && [ ${#GATED_MODELS_URLS[@]} -gt 0 ]; then
     CHECKPOINT_DIR="${COMFY_DIR}/models/checkpoints"
@@ -225,26 +172,62 @@ if [ -n "$HF_TOKEN" ] && [ ${#GATED_MODELS_URLS[@]} -gt 0 ]; then
     done
 fi
 
-# =================================================================================
-# DESCARGA CONDICIONAL DE MODELOS (QWEN / FLUX)
-# =================================================================================
+# 6.3 CONDICIONALES (QWEN/FLUX)
 cd "$COMFY_DIR"
-
 if [ "${DOWNLOAD_QWEN:-0}" = "1" ]; then
-    echo ">>> DOWNLOAD_QWEN=1 detectado → Descargando modelos Qwen Image"
+    echo ">>> DOWNLOAD_QWEN=1 detectado"
     bash <(curl -fsSL https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_qwen.sh)
 fi
 
 if [ "${DOWNLOAD_FLUX:-0}" = "1" ]; then
-    echo ">>> DOWNLOAD_FLUX=1 detectado → Descargando modelos Flux"
+    echo ">>> DOWNLOAD_FLUX=1 detectado"
     bash <(curl -fsSL https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_flux.sh)
 fi
 
+
 # =================================================================================
-# 7. CONFIGURACIÓN YAML
+# 8. DESCARGA FINAL DE REPOSITORIO (USANDO COMANDO NATIVO 'hf')
 # =================================================================================
-echo ">>> [8/9] Generando configuración de rutas..."
+# Se ejecuta aquí al final, antes de la configuración y arranque.
+if [ -n "$REPO_WORKFLOW_LORAS" ]; then
+    echo ">>> [8/9] Descargando repositorio completo con herramienta nativa 'hf'..."
+    
+    LORA_DIR="${COMFY_DIR}/models/loras"
+    mkdir -p "$LORA_DIR"
+
+    # --- PROTECCIÓN DE ENTORNO ---
+    # Desactivamos momentáneamente el venv de ComfyUI (Python 3.12)
+    # para usar el 'hf' del sistema (que usa el Python original del sistema)
+    # y evitar conflictos de librerías.
+    deactivate 2>/dev/null || true
+    
+    echo "--> Ejecutando comando hf del sistema..."
+    
+    if command -v hf &> /dev/null; then
+        # Nota: El token se toma automáticamente de la variable de entorno HF_TOKEN exportada arriba
+        hf download "$REPO_WORKFLOW_LORAS" \
+            --local-dir "$LORA_DIR" \
+            --local-dir-use-symlinks False \
+            --include "*.safetensors" "*.pt" "*.ckpt" \
+            || echo "ERROR CRÍTICO: Falló la descarga con 'hf'."
+    else
+        echo "ERROR: El comando 'hf' no se encontró en el sistema."
+    fi
+
+    # Reactivamos el entorno virtual para arrancar ComfyUI
+    source "$VENV_DIR/bin/activate"
+    echo "--> Descarga de repositorio finalizada."
+
+else
+    echo ">>> [8/9] No se detectó REPO_WORKFLOW_LORAS. Saltando."
+fi
+
+# =================================================================================
+# 9. CONFIGURACIÓN YAML Y EJECUCIÓN
+# =================================================================================
+echo ">>> [9/9] Generando configuración e iniciando..."
 cd "$COMFY_DIR"
+
 cat <<EOF > extra_model_paths.yaml
 comfyui:
     base_path: /extra-storage/models/
@@ -273,11 +256,8 @@ comfyui:
     vae: vae/
 EOF
 
-# =================================================================================
-# 8. EJECUCIÓN
-# =================================================================================
-echo ">>> [9/9] Iniciando ComfyUI..."
 chmod +x main.py
+# Aseguramos que el venv esté activo antes de lanzar
 source "$VENV_DIR/bin/activate"
 
 # Ejecutar
