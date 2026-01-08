@@ -9,7 +9,7 @@ VENV_DIR="${COMFY_DIR}/venv"
 SAGE_WHEEL="sageattention-2.1.1-cp312-cp312-linux_x86_64.whl"
 SAGE_URL="https://huggingface.co/nitin19/flash-attention-wheels/resolve/main/$SAGE_WHEEL"
 
-# Array con todos los Custom Nodes
+# Array con Custom Nodes (HE QUITADO GGUF DE AQUÍ PARA INSTALARLO MANUALMENTE)
 NODES_URLS=(
     "https://github.com/ltdrdata/ComfyUI-Manager.git"
     "https://github.com/yolain/ComfyUI-Easy-Use.git"
@@ -19,7 +19,6 @@ NODES_URLS=(
     "https://github.com/rgthree/rgthree-comfy.git"
     "https://github.com/pythongosssss/ComfyUI-Custom-Scripts.git"
     "https://github.com/lquesada/ComfyUI-Inpaint-CropAndStitch.git"
-    "https://github.com/calcuis/gguf.git"
     "https://github.com/melMass/comfy_mtb.git"
     "https://github.com/ClownsharkBatwing/RES4LYF.git"
 )
@@ -27,7 +26,7 @@ NODES_URLS=(
 # =================================================================================
 # 1. PREPARACIÓN DEL SISTEMA Y PYTHON 3.12
 # =================================================================================
-echo ">>> [1/8] Actualizando sistema e instalando dependencias base..."
+echo ">>> [1/9] Actualizando sistema e instalando dependencias base..."
 apt update && apt upgrade -y
 apt install -y software-properties-common build-essential git python3-pip wget cmake pkg-config ninja-build
 
@@ -47,7 +46,7 @@ fuser -k 3001/tcp || true
 # =================================================================================
 # 2. INSTALACIÓN DE COMFYUI
 # =================================================================================
-echo ">>> [2/8] Instalando ComfyUI..."
+echo ">>> [2/9] Instalando ComfyUI..."
 mkdir -p "$WORKSPACE"
 cd "$WORKSPACE"
 
@@ -61,7 +60,7 @@ fi
 # =================================================================================
 # 3. CREACIÓN DEL ENTORNO VIRTUAL
 # =================================================================================
-echo ">>> [3/8] Creando entorno virtual (venv)..."
+echo ">>> [3/9] Creando entorno virtual (venv)..."
 cd "$COMFY_DIR"
 rm -rf venv
 python3 -m venv venv
@@ -73,7 +72,7 @@ pip install --upgrade pip
 # =================================================================================
 # 4. INSTALACIÓN DE PYTORCH Y SAGEATTENTION
 # =================================================================================
-echo ">>> [4/8] Instalando PyTorch 2.7 y SageAttention..."
+echo ">>> [4/9] Instalando PyTorch 2.7 y SageAttention..."
 pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/cu128
 pip install triton packaging
 
@@ -90,11 +89,12 @@ cd "$COMFY_DIR"
 pip install -r requirements.txt
 
 # =================================================================================
-# 5. INSTALACIÓN DE CUSTOM NODES
+# 5. INSTALACIÓN DE CUSTOM NODES (General)
 # =================================================================================
-echo ">>> [5/8] Instalando Nodos Personalizados..."
+echo ">>> [5/9] Instalando Nodos Personalizados..."
 mkdir -p custom_nodes && cd custom_nodes
 
+# Instalación del loop general
 for repo_url in "${NODES_URLS[@]}"; do
     dir_name=$(basename "$repo_url" .git)
     if [ ! -d "$dir_name" ]; then
@@ -105,7 +105,25 @@ for repo_url in "${NODES_URLS[@]}"; do
     fi
 done
 
-echo ">>> Instalando dependencias de los nodos..."
+# =================================================================================
+# 6. INSTALACIÓN MANUAL DE GGUF (Corrección Específica)
+# =================================================================================
+echo ">>> [6/9] Instalando Node GGUF (Manual)..."
+cd "$COMFY_DIR/custom_nodes"
+
+# Instalamos la librería pip primero para evitar errores de importación
+pip install gguf
+
+# Clonamos el repo pero forzamos el nombre de carpeta a 'ComfyUI-GGUF' para evitar conflictos
+if [ ! -d "ComfyUI-GGUF" ]; then
+    echo "Clonando GGUF Node como ComfyUI-GGUF..."
+    git clone --depth 1 https://github.com/calcuis/gguf.git ComfyUI-GGUF
+else
+    echo "ComfyUI-GGUF ya existe."
+fi
+
+# Instalación de dependencias de todos los nodos
+echo ">>> Instalando requirements.txt de todos los nodos..."
 for dir in */; do
     if [ -f "${dir}requirements.txt" ]; then
         echo "Instalando deps para: $dir"
@@ -114,37 +132,30 @@ for dir in */; do
 done
 
 # =================================================================================
-# 6. DESCARGA DE LORAS EXTRA (Argumento LORAS_URL)
+# 7. DESCARGA DE LORAS EXTRA
 # =================================================================================
-# Aquí verificamos si la variable LORAS_URL existe y no está vacía (-n)
 if [ -n "$LORAS_URL" ]; then
-    echo ">>> [6/8] Argumento LORAS_URL detectado. Procesando descargas..."
-    
+    echo ">>> [7/9] Procesando LORAS_URL..."
     LORA_DIR="${COMFY_DIR}/models/loras"
     mkdir -p "$LORA_DIR"
     cd "$LORA_DIR"
-
-    # Cambiamos el separador interno a coma para leer la lista
-    IFS=',' read -ra ADDR <<< "$LORAS_URL"
     
+    IFS=',' read -ra ADDR <<< "$LORAS_URL"
     for url in "${ADDR[@]}"; do
-        # Limpiamos espacios en blanco al inicio o final de la url (trim)
         clean_url=$(echo "$url" | xargs)
-        
         if [ -n "$clean_url" ]; then
             echo "--> Descargando: $clean_url"
-            # --content-disposition: Fundamental para links de HuggingFace que no terminan en .safetensors
             wget --content-disposition "$clean_url" || echo "ADVERTENCIA: Falló descarga de $clean_url"
         fi
     done
 else
-    echo ">>> [6/8] No se detectó LORAS_URL. Saltando descargas extra."
+    echo ">>> [7/9] No se detectó LORAS_URL."
 fi
 
 # =================================================================================
-# 7. CONFIGURACIÓN YAML
+# 8. CONFIGURACIÓN YAML
 # =================================================================================
-echo ">>> [7/8] Generando configuración de rutas..."
+echo ">>> [8/9] Generando configuración de rutas..."
 cd "$COMFY_DIR"
 cat <<EOF > extra_model_paths.yaml
 comfyui:
@@ -175,11 +186,15 @@ comfyui:
 EOF
 
 # =================================================================================
-# 8. EJECUCIÓN
+# 9. EJECUCIÓN
 # =================================================================================
-echo ">>> [8/8] Iniciando ComfyUI..."
+echo ">>> [9/9] Iniciando ComfyUI..."
 chmod +x main.py
 source "$VENV_DIR/bin/activate"
+
+# Verificar GGUF
+echo "Verificando carpeta GGUF:"
+ls -d custom_nodes/ComfyUI-GGUF || echo "ERROR: No se encontró la carpeta ComfyUI-GGUF"
 
 # Ejecutar
 python main.py --use-sage-attention --listen --port 3001 --preview-method latent2rgb
