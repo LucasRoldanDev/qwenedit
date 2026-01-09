@@ -45,7 +45,6 @@ echo "Instalando / actualizando huggingface_hub..."
 pip install -U huggingface_hub --break-system-packages || pip install -U huggingface_hub
 
 echo "[OK] huggingface_hub instalado"
-hf --version
 
 # ------------------------------------------------------------------------------
 # 4. Descarga de repositorio
