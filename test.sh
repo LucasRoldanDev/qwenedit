@@ -2,13 +2,25 @@
 set -e
 
 # ================================================================================
+# 0. DEBUG: MOSTRAR TODAS LAS VARIABLES DE ENTORNO
+# ================================================================================
+echo "#################################################################"
+echo "###            INICIO DEL DUMP DE VARIABLES DE ENTORNO        ###"
+echo "#################################################################"
+# Muestra todas las variables ordenadas alfabéticamente
+printenv | sort
+echo "#################################################################"
+echo "###             FIN DEL DUMP DE VARIABLES DE ENTORNO          ###"
+echo "#################################################################"
+
+# ================================================================================
 # TEST HF: Verificación visual de Token y Descarga
 # ================================================================================
 
 WORKSPACE="/workspace"
 TEST_DIR="${WORKSPACE}/hf_test_download"
 
-# 1. Capturar Token
+# 1. Capturar Token (Tal como viene de RunPod)
 export HF_TOKEN="$RUNPOD_SECRET_hf_tk"
 
 echo "============================================================"
@@ -21,21 +33,21 @@ echo "============================================================"
 if [ -n "$HF_TOKEN" ]; then
     echo "[OK] HF_TOKEN detectado."
     
-    # Lógica para mostrar los últimos 4 caracteres
-    # ${VAR: -4} extrae los últimos 4.
+    # Extraer los últimos 4 caracteres
     LAST_FOUR="${HF_TOKEN: -4}"
     
     echo "     Longitud: ${#HF_TOKEN} caracteres."
-    echo "     Token Check: ...$LAST_FOUR"  # <--- AQUÍ MOSTRAMOS EL FINAL DEL TOKEN
+    echo "     Token Check: ...$LAST_FOUR"
+    echo "     (Compara estos 4 caracteres con tu token real en HF)"
     
     if [[ "$HF_TOKEN" != hf_* ]]; then
-        echo "[WARN] CUIDADO: El token no empieza por 'hf_'. Verifica que sea correcto."
+        echo "[WARN] CUIDADO: El token no empieza por 'hf_'. Verifica el dump de variables arriba."
     else
         echo "     Formato: Correcto (Empieza por 'hf_')"
     fi
 else
     echo "[WARN] HF_TOKEN NO detectado o está vacío."
-    echo "       La descarga fallará si el repositorio es privado."
+    echo "       Revisa el listado de variables al inicio de este log."
 fi
 
 # ------------------------------------------------------------------------------
@@ -43,6 +55,7 @@ fi
 # ------------------------------------------------------------------------------
 if [ -z "$REPO_WORKFLOW_LORAS" ]; then
     echo "[ERROR] REPO_WORKFLOW_LORAS no está definida."
+    echo "Define la variable antes de ejecutar (ej: export REPO_WORKFLOW_LORAS=usuario/repo)"
     exit 1
 fi
 
@@ -75,8 +88,7 @@ if [ -n "$HF_TOKEN" ]; then
         || {
             echo "------------------------------------------------------------"
             echo "[ERROR] Falló la descarga AUTENTICADA."
-            echo "1. Revisa que los caracteres '...$LAST_FOUR' coincidan con tu token real."
-            echo "2. Revisa permisos del repo."
+            echo "Revisa el log de arriba para ver el error exacto (401, 403, 404)."
             exit 1
         }
 else
