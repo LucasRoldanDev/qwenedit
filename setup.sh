@@ -1,4 +1,5 @@
 #!/bin/bash
+
 # =================================================================================
 # DEBUG: MOSTRAR VARIABLES DE ENTORNO AL INICIO
 # =================================================================================
@@ -192,31 +193,37 @@ fi
 
 
 # =================================================================================
-# 8. DESCARGA FINAL DE REPOSITORIO (GLOBAL PIP + HF)
+# 8. DESCARGA FINAL DE REPOSITORIO (GLOBAL PIP + HF) - CORREGIDO
 # =================================================================================
 if [ -n "$REPO_WORKFLOW_LORAS" ]; then
-    echo ">>> [8/9] Preparando descarga de repositorio..."
+    echo ">>> [8/9] Preparando descarga de repositorio ($REPO_WORKFLOW_LORAS)..."
     
     LORA_DIR="${COMFY_DIR}/models/loras"
     mkdir -p "$LORA_DIR"
 
-    # 1. Salir del entorno virtual
+    # 1. Salir del entorno virtual para instalar la herramienta globalmente
     deactivate 2>/dev/null || true
     
-    echo "--> Instalando huggingface_hub globalmente..."
-    # Usamos -U para intentar forzar la actualización a la última versión
-    pip install -U huggingface_hub --break-system-packages || pip install -U huggingface_hub
+    echo "--> Instalando huggingface_hub[cli] globalmente..."
+    pip install -U "huggingface_hub[cli]" --break-system-packages || pip install -U huggingface_hub
     
-    echo "--> Ejecutando descarga con 'hf'..."
-    
-    # CORRECCIÓN: Se eliminó el flag --local-dir-use-symlinks False porque da error.
-    # El token se toma automáticamente de la variable exportada HF_TOKEN.
-    hf download "$REPO_WORKFLOW_LORAS" \
-        --local-dir "$LORA_DIR" \
-        --include "*.safetensors" "*.pt" "*.ckpt" \
-        || echo "ERROR CRÍTICO: Falló la descarga del repositorio."
+    # 2. Lógica de descarga basada en el script de prueba
+    if [ -n "$HF_TOKEN" ]; then
+        echo "--> Usando autenticación EXPLÍCITA con Token..."
+        hf download "$REPO_WORKFLOW_LORAS" \
+            --local-dir "$LORA_DIR" \
+            --token "$HF_TOKEN" \
+            --include "*.safetensors" "*.pt" "*.ckpt" \
+            || echo "ERROR CRÍTICO: Falló la descarga AUTENTICADA del repositorio."
+    else
+        echo "--> Intentando descarga PÚBLICA (Sin token)..."
+        hf download "$REPO_WORKFLOW_LORAS" \
+            --local-dir "$LORA_DIR" \
+            --include "*.safetensors" "*.pt" "*.ckpt" \
+            || echo "ERROR CRÍTICO: Falló la descarga PÚBLICA del repositorio."
+    fi
 
-    # 2. Reactivar venv
+    # 3. Reactivar venv
     source "$VENV_DIR/bin/activate"
     echo "--> Descarga de repositorio finalizada."
 
