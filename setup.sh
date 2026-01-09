@@ -7,7 +7,7 @@ set -e  # Detiene el script si hay errores críticos
 echo "================================================================="
 echo ">>> [0/9] LISTADO COMPLETO DE VARIABLES DE ENTORNO"
 echo "================================================================="
-printenv
+#printenv
 echo "================================================================="
 echo ">>> FIN DEL LISTADO DE VARIABLES"
 echo "================================================================="
