@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e  # Detiene el script si hay errores críticos
 
 # =================================================================================
 # DEBUG: MOSTRAR VARIABLES DE ENTORNO AL INICIO
@@ -6,7 +7,7 @@
 echo "================================================================="
 echo ">>> [0/9] LISTADO COMPLETO DE VARIABLES DE ENTORNO"
 echo "================================================================="
-#printenv
+printenv
 echo "================================================================="
 echo ">>> FIN DEL LISTADO DE VARIABLES"
 echo "================================================================="
@@ -31,6 +32,53 @@ else
     echo "================================================================="
     echo "TOKEN NO ENCONTRADO. Se omitirán descargas privadas."
     echo "================================================================="
+fi
+
+# =================================================================================
+# VALIDACIÓN PREVIA (PRE-FLIGHT CHECK)
+# Verifica si el repositorio existe antes de instalar nada
+# =================================================================================
+if [ -n "$REPO_WORKFLOW_LORAS" ]; then
+    echo ">>> VALIDANDO ACCESO AL REPOSITORIO: $REPO_WORKFLOW_LORAS"
+    
+    # Nos aseguramos de tener curl
+    if ! command -v curl &> /dev/null; then
+        echo "Instalando curl temporalmente para la verificación..."
+        apt-get update -qq && apt-get install -y -qq curl
+    fi
+
+    API_URL="https://huggingface.co/api/models/$REPO_WORKFLOW_LORAS"
+    
+    # Petición a la API de HF
+    if [ -n "$HF_TOKEN" ]; then
+        HTTP_STATUS=$(curl -o /dev/null -s -w "%{http_code}" -H "Authorization: Bearer $HF_TOKEN" "$API_URL")
+    else
+        HTTP_STATUS=$(curl -o /dev/null -s -w "%{http_code}" "$API_URL")
+    fi
+
+    echo ">>> ESTADO HTTP API: $HTTP_STATUS"
+
+    if [ "$HTTP_STATUS" -eq 200 ]; then
+        echo ">>> [OK] Repositorio validado correctamente. Continuando instalación..."
+    elif [ "$HTTP_STATUS" -eq 401 ] || [ "$HTTP_STATUS" -eq 403 ]; then
+        echo "#################################################################"
+        echo ">>> [ERROR CRÍTICO] ACCESO DENEGADO AL REPOSITORIO ($HTTP_STATUS)"
+        echo ">>> El repositorio existe pero tu token no tiene permisos."
+        echo ">>> Ejecución cancelada."
+        echo "#################################################################"
+        exit 1
+    elif [ "$HTTP_STATUS" -eq 404 ]; then
+        echo "#################################################################"
+        echo ">>> [ERROR CRÍTICO] REPOSITORIO NO ENCONTRADO (404)"
+        echo ">>> El repositorio '$REPO_WORKFLOW_LORAS' no existe."
+        echo ">>> Ejecución cancelada."
+        echo "#################################################################"
+        exit 1
+    else
+        echo ">>> [ADVERTENCIA] Respuesta inesperada ($HTTP_STATUS). Intentando continuar..."
+    fi
+else
+    echo ">>> [INFO] No se definió REPO_WORKFLOW_LORAS, se salta la validación."
 fi
 
 # ---------------------------------------------------------------------------------
@@ -201,26 +249,27 @@ if [ -n "$REPO_WORKFLOW_LORAS" ]; then
     LORA_DIR="${COMFY_DIR}/models/loras"
     mkdir -p "$LORA_DIR"
 
-    # 1. Salir del entorno virtual para instalar la herramienta globalmente
+    # 1. Salir del entorno virtual
     deactivate 2>/dev/null || true
     
     echo "--> Instalando huggingface_hub[cli] globalmente..."
     pip install -U "huggingface_hub[cli]" --break-system-packages || pip install -U huggingface_hub
     
-    # 2. Lógica de descarga basada en el script de prueba
+    # 2. Descarga usando lógica explícita de token y MÚLTIPLES INCLUDES
+    #    NOTA: Se usa --include repetido para evitar errores de parseo
     if [ -n "$HF_TOKEN" ]; then
         echo "--> Usando autenticación EXPLÍCITA con Token..."
         hf download "$REPO_WORKFLOW_LORAS" \
             --local-dir "$LORA_DIR" \
             --token "$HF_TOKEN" \
-            --include "*.safetensors" "*.pt" "*.ckpt" \
-            || echo "ERROR CRÍTICO: Falló la descarga AUTENTICADA del repositorio."
+            --include "*.safetensors" --include "*.pt" --include "*.ckpt" \
+            || { echo "ERROR CRÍTICO: Falló la descarga."; exit 1; }
     else
         echo "--> Intentando descarga PÚBLICA (Sin token)..."
         hf download "$REPO_WORKFLOW_LORAS" \
             --local-dir "$LORA_DIR" \
-            --include "*.safetensors" "*.pt" "*.ckpt" \
-            || echo "ERROR CRÍTICO: Falló la descarga PÚBLICA del repositorio."
+            --include "*.safetensors" --include "*.pt" --include "*.ckpt" \
+            || { echo "ERROR CRÍTICO: Falló la descarga."; exit 1; }
     fi
 
     # 3. Reactivar venv
