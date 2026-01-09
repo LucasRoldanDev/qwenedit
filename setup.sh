@@ -234,6 +234,12 @@ if [ "${DOWNLOAD_QWEN:-0}" = "1" ]; then
     bash <(curl -fsSL https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_qwen.sh)
 fi
 
+# Bloque NUEVO para Qwen Image
+if [ "${DOWNLOAD_QWEN_IMAGE:-0}" = "1" ]; then
+    echo ">>> DOWNLOAD_QWEN_IMAGE=1 detectado"
+    bash <(curl -fsSL https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_qwen_image.sh)
+fi
+
 if [ "${DOWNLOAD_FLUX:-0}" = "1" ]; then
     echo ">>> DOWNLOAD_FLUX=1 detectado"
     bash <(curl -fsSL https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_flux.sh)
