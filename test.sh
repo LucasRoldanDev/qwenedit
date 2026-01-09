@@ -8,7 +8,7 @@ echo "#################################################################"
 echo "###            INICIO DEL DUMP DE VARIABLES DE ENTORNO        ###"
 echo "#################################################################"
 # Muestra todas las variables ordenadas alfabéticamente
-printenv | sort
+# printenv | sort
 echo "#################################################################"
 echo "###             FIN DEL DUMP DE VARIABLES DE ENTORNO          ###"
 echo "#################################################################"
