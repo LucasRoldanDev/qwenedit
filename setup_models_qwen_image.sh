@@ -10,14 +10,14 @@ mkdir -p \
   models/clip \
   models/vae \
   models/loras \
-  models/unet
+  models/diffusion_models
 
 # -------------------------
 # Diffusion Model (Main FP8)
 # -------------------------
-if [ ! -f models/unet/qwen_image_fp8_e4m3fn.safetensors ]; then
+if [ ! -f models/diffusion_models/qwen_image_fp8_e4m3fn.safetensors ]; then
   echo "Downloading Diffusion Model..."
-  wget -O models/unet/qwen_image_fp8_e4m3fn.safetensors \
+  wget -O models/diffusion_models/qwen_image_fp8_e4m3fn.safetensors \
     https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/diffusion_models/qwen_image_fp8_e4m3fn.safetensors
 else
   echo "✔ Diffusion model (FP8) already exists"
