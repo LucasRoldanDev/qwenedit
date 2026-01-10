@@ -20,6 +20,7 @@ COMFY_DIR="${WORKSPACE}/ComfyUI"
 VENV_DIR="${COMFY_DIR}/venv"
 SAGE_WHEEL="sageattention-2.1.1-cp312-cp312-linux_x86_64.whl"
 SAGE_URL="https://huggingface.co/nitin19/flash-attention-wheels/resolve/main/$SAGE_WHEEL"
+COMFYUI_VERSION="v0.4.0"
 
 # Captura del secreto de RunPod y exportación
 export HF_TOKEN="$RUNPOD_SECRET_hf_tk"
@@ -134,11 +135,17 @@ echo ">>> [2/9] Instalando ComfyUI..."
 mkdir -p "$WORKSPACE"
 cd "$WORKSPACE"
 
-if [ -d "$COMFY_DIR" ]; then
-    echo "Carpeta ComfyUI detectada. Actualizando..."
-    cd "$COMFY_DIR" && git pull
+if [ -d "$COMFY_DIR/.git" ]; then
+    echo ">>> ComfyUI ya existe. Forzando versión $COMFYUI_VERSION..."
+    cd "$COMFY_DIR"
+    git fetch --all --tags
+    git checkout "$COMFYUI_VERSION"
 else
-    git clone https://github.com/comfyanonymous/ComfyUI.git
+    echo ">>> Clonando ComfyUI versión $COMFYUI_VERSION..."
+    git clone https://github.com/comfyanonymous/ComfyUI.git "$COMFY_DIR"
+    cd "$COMFY_DIR"
+    git fetch --all --tags
+    git checkout "$COMFYUI_VERSION"
 fi
 
 echo ">>> [3/9] Creando entorno virtual (venv)..."
