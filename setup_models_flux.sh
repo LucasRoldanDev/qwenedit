@@ -7,8 +7,8 @@ echo "Downloading FLUX.1-dev models into: $WORKSPACE/models"
 
 # Create required directories
 mkdir -p \
-  models/checkpoints \
-  models/models_clip \
+  models/diffusion_models \
+  models/clip \
   models/vae
 
 # -------------------------
@@ -24,8 +24,8 @@ fi
 # -------------------------
 # CLIP-L
 # -------------------------
-if [ ! -f models/models_clip/clip_l.safetensors ]; then
-  wget -O models/models_clip/clip_l.safetensors \
+if [ ! -f models/clip/clip_l.safetensors ]; then
+  wget -O models/clip/clip_l.safetensors \
     https://huggingface.co/GraydientPlatformAPI/flux-clip/resolve/main/clip_l.safetensors
 else
   echo "✔ CLIP-L already exists"
@@ -34,8 +34,8 @@ fi
 # -------------------------
 # T5XXL encoder (FP8 scaled)
 # -------------------------
-if [ ! -f models/models_clip/t5xxl_fp8_e4m3fn_scaled.safetensors ]; then
-  wget -O models/models_clip/t5xxl_fp8_e4m3fn.safetensors \
+if [ ! -f models/clip/t5xxl_fp8_e4m3fn_scaled.safetensors ]; then
+  wget -O models/clip/t5xxl_fp8_e4m3fn.safetensors \
     https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors
 else
   echo "✔ T5XXL encoder already exists"
