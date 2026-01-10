@@ -14,8 +14,8 @@ mkdir -p \
 # -------------------------
 # FLUX.1-dev checkpoint (FP8)
 # -------------------------
-if [ ! -f models/checkpoints/flux1-dev-fp8.safetensors ]; then
-  wget -O models/checkpoints/flux1-dev-fp8.safetensors \
+if [ ! -f models/diffusion_models/flux1-dev-fp8.safetensors ]; then
+  wget -O models/diffusion_models/flux1-dev-fp8.safetensors \
     https://huggingface.co/Comfy-Org/flux1-dev/resolve/main/flux1-dev-fp8.safetensors
 else
   echo "Flux dev checkpoint already exists"
