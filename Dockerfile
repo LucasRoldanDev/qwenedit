@@ -5,10 +5,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV WORKSPACE="/workspace"
 ENV COMFY_DIR="${WORKSPACE}/ComfyUI"
 ENV VENV_DIR="${COMFY_DIR}/venv"
+# Añadimos el venv al PATH para no repetir source activate
 ENV PATH="${VENV_DIR}/bin:$PATH" 
 ENV COMFYUI_VERSION="v0.4.0"
 
+# =================================================================================
 # 1. PREPARACIÓN DEL SISTEMA
+# =================================================================================
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y software-properties-common build-essential git python3-pip wget cmake pkg-config ninja-build curl \
     python3.12 python3.12-venv python3.12-dev && \
@@ -16,7 +19,9 @@ RUN apt-get update && apt-get upgrade -y && \
     update-alternatives --set python3 /usr/bin/python3.12 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# =================================================================================
 # 2. INSTALACIÓN DE COMFYUI Y VENV
+# =================================================================================
 WORKDIR ${WORKSPACE}
 
 RUN git clone https://github.com/comfyanonymous/ComfyUI.git ${COMFY_DIR} && \
@@ -32,7 +37,7 @@ RUN python3 -m venv venv
 # 1. Pip base
 RUN pip install --upgrade pip wheel
 
-# 2. PyTorch (CORREGIDO: Sin --index-url)
+# 2. PyTorch (Directo de PyPI para máxima compatibilidad)
 RUN pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0
 
 # 3. Dependencias extra
@@ -41,15 +46,15 @@ RUN pip install triton packaging
 # 4. Requirements de ComfyUI
 RUN pip install -r requirements.txt
 
-# 5. SageAttention
-RUN wget "https://huggingface.co/nitin19/flash-attention-wheels/resolve/main/sageattention-2.1.1-cp312-cp312-linux_x86_64.whl" -O sage.whl && \
-    pip install sage.whl && \
-    rm sage.whl
+# 5. SageAttention (CORREGIDO: Instalación directa desde URL)
+RUN pip install "https://huggingface.co/nitin19/flash-attention-wheels/resolve/main/sageattention-2.1.1-cp312-cp312-linux_x86_64.whl"
 
 # 6. Huggingface CLI
 RUN pip install "huggingface_hub[cli]"
 
+# =================================================================================
 # 3. INSTALACIÓN DE CUSTOM NODES
+# =================================================================================
 WORKDIR ${COMFY_DIR}/custom_nodes
 
 RUN git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Manager.git && \
@@ -65,6 +70,7 @@ RUN git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Manager.git && \
     git clone --depth 1 https://github.com/city96/ComfyUI-GGUF.git && \
     git clone --depth 1 https://github.com/ClownsharkBatwing/RES4LYF.git
 
+# Instalación de requirements de nodos
 RUN for dir in */; do \
         if [ -f "$dir/requirements.txt" ]; then \
             echo "Installing requirements for $dir"; \
@@ -72,9 +78,4 @@ RUN for dir in */; do \
         fi; \
     done
 
-# 4. CONFIGURACIÓN FINAL
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
-
-WORKDIR ${COMFY_DIR}
-CMD ["/start.sh"]
+# ==========================================
