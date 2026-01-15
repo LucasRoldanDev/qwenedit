@@ -32,7 +32,7 @@ download_and_move() {
         if [ -n "$HF_TOKEN" ]; then token_arg="--token $HF_TOKEN"; fi
 
         # CORRECCIÓN: Quitamos --local-dir-use-symlinks False
-        if hf download "$repo_id" "$remote_path" --local-dir "$tmp_dl_dir" --quiet $token_arg; then
+        if hf download "$repo_id" "$remote_path" --local-dir "$tmp_dl_dir" $token_arg; then
             mv "$tmp_dl_dir/$remote_path" "$target_file"
             rm -rf "$tmp_dl_dir"
         else
