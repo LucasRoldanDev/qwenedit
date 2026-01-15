@@ -75,7 +75,20 @@ fi
 # 4. Descarga del Repositorio de Workflows/Loras (HF CLI)
 if [ -n "$REPO_WORKFLOW_LORAS" ]; then
     echo ">>> Descargando repositorio completo: $REPO_WORKFLOW_LORAS"
-    LORA_DIR="${COMFY_DIR}/models/loras"
+    
+    EXTRA_STORAGE="/extra-storage"
+    
+    # Lógica de detección de volumen
+    if [ -d "$EXTRA_STORAGE" ]; then
+        echo ">>> 💾 VOLUMEN EXTERNO DETECTADO (/extra-storage)"
+        echo ">>> Los LoRAs del repositorio se guardarán en el volumen de red."
+        LORA_DIR="${EXTRA_STORAGE}/models/loras"
+    else
+        echo ">>> 🏠 Usando almacenamiento local (Workspace) para LoRAs."
+        LORA_DIR="${COMFY_DIR}/models/loras"
+    fi
+
+    echo ">>> Destino de descarga: $LORA_DIR"
     mkdir -p "$LORA_DIR"
     
     # Usamos el token si existe
