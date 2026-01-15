@@ -2,8 +2,6 @@
 set -e
 
 export HF_HUB_ENABLE_HF_TRANSFER=1
-alias hf="huggingface-cli"
-pip install -U "huggingface_hub[cli]" > /dev/null 2>&1 || true
 
 WORKSPACE="$(pwd)"
 EXTRA_STORAGE="/extra-storage"
