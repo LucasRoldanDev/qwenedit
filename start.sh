@@ -2,7 +2,7 @@
 set -e
 
 echo "================================================================="
-echo ">>> INICIANDO CONTENEDOR COMFYUI CUSTOM"
+echo ">>> INICIANDO SCRIPT DE ARRANQUE (OPTIMIZADO)"
 echo "================================================================="
 
 WORKSPACE="/workspace"
@@ -12,16 +12,22 @@ VENV_DIR="${COMFY_DIR}/venv"
 # Asegurar que estamos usando el venv
 source "$VENV_DIR/bin/activate"
 
+# Instalar hf_transfer para máxima velocidad
+# y asegurar que existe el comando 'hf'
+pip install -q hf_transfer huggingface_hub[cli]
+alias hf="huggingface-cli"
+export HF_HUB_ENABLE_HF_TRANSFER=1
+
 # Exportar token si viene de RunPod
 export HF_TOKEN="$RUNPOD_SECRET_hf_tk"
 
 # =================================================================================
-# VALIDACIÓN Y DESCARGAS (RUNTIME)
+# VALIDACIÓN Y DESCARGAS
 # =================================================================================
 
-# 1. Validación de REPO_WORKFLOW_LORAS
+# 1. Validación de REPO_WORKFLOW_LORAS (Silenciosa)
 if [ -n "$REPO_WORKFLOW_LORAS" ]; then
-    echo ">>> VALIDANDO REPOSITORIO: $REPO_WORKFLOW_LORAS"
+    echo ">>> Validando acceso al repositorio..."
     API_URL="https://huggingface.co/api/models/$REPO_WORKFLOW_LORAS"
     
     if [ -n "$HF_TOKEN" ]; then
@@ -31,14 +37,15 @@ if [ -n "$REPO_WORKFLOW_LORAS" ]; then
     fi
 
     if [ "$HTTP_STATUS" -ne 200 ]; then
-        echo ">>> [ERROR] No se puede acceder al repo ($HTTP_STATUS). Verifica el token o el nombre."
-        # No hacemos exit 1 para permitir que arranque ComfyUI aunque falle la descarga
+        echo ">>> [ERROR] Acceso denegado o repo no encontrado ($HTTP_STATUS)."
+    else
+        echo ">>> [OK] Repositorio validado."
     fi
 fi
 
-# 2. Descargas de LORAS sueltos (LORAS_URL)
+# 2. Descargas de LORAS sueltos (URLs directas)
 if [ -n "$LORAS_URL" ]; then
-    echo ">>> Descargando LORAS sueltos..."
+    echo ">>> Procesando lista de LoRAs sueltos..."
     LORA_DIR="${COMFY_DIR}/models/loras"
     mkdir -p "$LORA_DIR" && cd "$LORA_DIR"
     
@@ -46,57 +53,78 @@ if [ -n "$LORAS_URL" ]; then
     for url in "${ADDR[@]}"; do
         clean_url=$(echo "$url" | xargs)
         if [ -n "$clean_url" ]; then
+            filename=$(basename "$clean_url")
+            echo "   -> Descargando: $filename"
             if [ -n "$HF_TOKEN" ]; then
-                wget --header "Authorization: Bearer $HF_TOKEN" --content-disposition "$clean_url" || echo "Falló: $clean_url"
+                wget -q --header "Authorization: Bearer $HF_TOKEN" --content-disposition "$clean_url" || echo "   [!] Falló: $clean_url"
             else
-                wget --content-disposition "$clean_url" || echo "Falló: $clean_url"
+                wget -q --content-disposition "$clean_url" || echo "   [!] Falló: $clean_url"
             fi
         fi
     done
 fi
 
-# 3. Descarga de Scripts de Modelos (Qwen, Flux, etc)
+# 3. Descarga de Scripts de Modelos (Silenciados)
 cd "$COMFY_DIR"
 if [ "${DOWNLOAD_QWEN:-0}" = "1" ]; then
-    echo ">>> Ejecuyendo setup Qwen..."
-    bash <(curl -fsSL https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_qwen.sh)
+    echo ">>> Descargando modelos Qwen (Texto/Edit)..."
+    bash <(curl -fsSL https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_qwen.sh) > /dev/null 2>&1
+    echo "   -> Completado."
 fi
 
 if [ "${DOWNLOAD_QWEN_IMAGE:-0}" = "1" ]; then
-    echo ">>> Ejecuyendo setup Qwen Image..."
-    bash <(curl -fsSL https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_qwen_image.sh)
+    echo ">>> Descargando modelos Qwen (Imagen)..."
+    bash <(curl -fsSL https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_qwen_image.sh) > /dev/null 2>&1
+    echo "   -> Completado."
 fi
 
 if [ "${DOWNLOAD_FLUX:-0}" = "1" ]; then
-    echo ">>> Ejecuyendo setup FLUX..."
-    bash <(curl -fsSL https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_flux.sh)
+    echo ">>> Descargando modelos FLUX.1-dev..."
+    bash <(curl -fsSL https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/setup_models_flux.sh) > /dev/null 2>&1
+    echo "   -> Completado."
 fi
 
-# 4. Descarga del Repositorio de Workflows/Loras (HF CLI)
+# 4. Descarga del Repositorio de Workflows/Loras (Usando 'hf' + hf_transfer)
 if [ -n "$REPO_WORKFLOW_LORAS" ]; then
-    echo ">>> Descargando repositorio completo: $REPO_WORKFLOW_LORAS"
     
     EXTRA_STORAGE="/extra-storage"
     
     # Lógica de detección de volumen
     if [ -d "$EXTRA_STORAGE" ]; then
-        echo ">>> 💾 VOLUMEN EXTERNO DETECTADO (/extra-storage)"
-        echo ">>> Los LoRAs del repositorio se guardarán en el volumen de red."
+        echo ">>> 💾 VOLUMEN EXTERNO DETECTADO. Cacheando LoRAs en red."
         LORA_DIR="${EXTRA_STORAGE}/models/loras"
     else
-        echo ">>> 🏠 Usando almacenamiento local (Workspace) para LoRAs."
+        echo ">>> 🏠 Usando almacenamiento local."
         LORA_DIR="${COMFY_DIR}/models/loras"
     fi
 
-    echo ">>> Destino de descarga: $LORA_DIR"
     mkdir -p "$LORA_DIR"
+    echo ">>> Descargando repositorio de LoRAs (usando hf_transfer)..."
+    echo "   -> Repo: $REPO_WORKFLOW_LORAS"
+    echo "   -> Destino: $LORA_DIR"
     
-    # Usamos el token si existe
+    # Usamos 'hf' en lugar de huggingface-cli como pediste (gracias al alias)
+    # --quiet oculta la barra de progreso
     if [ -n "$HF_TOKEN" ]; then
-        hf download "$REPO_WORKFLOW_LORAS" --local-dir "$LORA_DIR" --token "$HF_TOKEN" --include "*.safetensors" "*.pt" "*.ckpt" || echo "Error en descarga HF"
+        hf download "$REPO_WORKFLOW_LORAS" --local-dir "$LORA_DIR" --token "$HF_TOKEN" --include "*.safetensors" "*.pt" "*.ckpt" --quiet || echo "   [!] Error en descarga HF"
     else
-        hf download "$REPO_WORKFLOW_LORAS" --local-dir "$LORA_DIR" --include "*.safetensors" "*.pt" "*.ckpt" || echo "Error en descarga HF"
+        hf download "$REPO_WORKFLOW_LORAS" --local-dir "$LORA_DIR" --include "*.safetensors" "*.pt" "*.ckpt" --quiet || echo "   [!] Error en descarga HF"
     fi
+    echo "   -> Descarga del repositorio finalizada."
+fi
+
+# =================================================================================
+# LÓGICA DE SOLO CACHÉ (SKIPEAR ARRANQUE)
+# =================================================================================
+if [ "${ONLY_DOWNLOAD_MODELS:-0}" = "1" ] || [ "${ONLY_DOWNLOAD_MODELS}" = "true" ]; then
+    echo "================================================================="
+    echo ">>> ✅ MODO 'ONLY_DOWNLOAD_MODELS' ACTIVO"
+    echo ">>> Todas las descargas han finalizado correctamente."
+    echo ">>> Deteniendo ejecución antes de iniciar ComfyUI."
+    echo ">>> Puedes apagar este Pod."
+    echo "================================================================="
+    sleep 5 # Pequeña pausa para asegurar logs
+    exit 0
 fi
 
 # =================================================================================
@@ -133,8 +161,8 @@ comfyui:
     vae: vae/
 EOF
 
+echo ">>> Instalando dependencias finales..."
+pip install -q websocket-client
+
 echo ">>> Iniciando ComfyUI..."
-
-pip install websocket-client
-
 python main.py --use-sage-attention --listen --port 3001 --preview-method latent2rgb --enable-cors-header "*"
