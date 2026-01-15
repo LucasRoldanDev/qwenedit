@@ -47,7 +47,7 @@ jobs:
           file: Dockerfile
           push: true
           # IMPORTANTE: Cambia 'comfyui-custom' si quieres otro nombre para tu imagen
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/comfyui-custom:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/comfyui-custom:v1
           
           # Configuración de caché para intentar acelerar futuras construcciones
           # Usamos 'inline' para evitar errores de registro en la primera subida
