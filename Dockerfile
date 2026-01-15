@@ -78,4 +78,12 @@ RUN for dir in */; do \
         fi; \
     done
 
-# ==========================================
+# =================================================================================
+# 4. CONFIGURACIÓN FINAL
+# =================================================================================
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+WORKDIR ${COMFY_DIR}
+# En lugar de copiar un archivo local, le decimos que descargue y ejecute el remoto al iniciar
+CMD ["/bin/bash", "-c", "curl -fsSL https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/refs/heads/main/start.sh | bash"]
