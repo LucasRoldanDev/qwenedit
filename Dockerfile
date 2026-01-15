@@ -68,7 +68,8 @@ RUN git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Manager.git && \
     git clone --depth 1 https://github.com/calcuis/gguf.git && \
     git clone --depth 1 https://github.com/melMass/comfy_mtb.git && \
     git clone --depth 1 https://github.com/city96/ComfyUI-GGUF.git && \
-    git clone --depth 1 https://github.com/ClownsharkBatwing/RES4LYF.git
+    git clone --depth 1 https://github.com/ClownsharkBatwing/RES4LYF.git && \
+    git clone --depth 1 https://github.com/TinyTerra/ComfyUI_tinyterraNodes
 
 # Instalación de requirements de nodos
 RUN for dir in */; do \
