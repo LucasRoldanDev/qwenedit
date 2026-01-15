@@ -2,26 +2,14 @@
 set -e
 
 echo "================================================================="
-echo ">>> INICIANDO CONTENEDOR COMFYUI CUSTOM"
+echo ">>> INICIANDO SCRIPT DE ARRANQUE (OPTIMIZADO)"
 echo "================================================================="
-
-# ===============================================================================
-# [NUEVO] INTERRUPTOR DE SOLO DESCARGA
-# Se ejecuta ANTES de cargar entornos virtuales para evitar errores si no existen.
-# ===============================================================================
-if [ "${ONLY_DOWNLOAD_MODELS:-0}" = "1" ] || [ "${ONLY_DOWNLOAD_MODELS}" = "true" ]; then
-    echo ">>> Detectado ONLY_DOWNLOAD_MODELS. Ejecutando script de descarga y saliendo..."
-    # Ejecuta el script externo que creamos en el Paso 1
-    bash <(curl -fsSL https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/main/only_download.sh)
-    exit 0
-fi
-# ===============================================================================
 
 WORKSPACE="/workspace"
 COMFY_DIR="${WORKSPACE}/ComfyUI"
 VENV_DIR="${COMFY_DIR}/venv"
 
-# Asegurar que estamos usando el venv (ESTO DABA ERROR ANTES, AHORA NO SE EJECUTARÁ SI SOLO DESCARGAS)
+# Asegurar que estamos usando el venv
 source "$VENV_DIR/bin/activate"
 
 # Instalar hf_transfer para máxima velocidad
