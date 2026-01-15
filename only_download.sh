@@ -5,7 +5,7 @@ echo "================================================================="
 echo ">>> INICIANDO SCRIPT: SOLO DESCARGA DE MODELOS"
 echo "================================================================="
 
-WORKSPACE="/workspace"
+WORKSPACE="/extra-storage"
 COMFY_DIR="${WORKSPACE}/ComfyUI"
 
 # Creamos el directorio base por si no existe, ya que no vamos a clonar ComfyUI completo
