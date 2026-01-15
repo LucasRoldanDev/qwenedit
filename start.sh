@@ -121,4 +121,4 @@ comfyui:
 EOF
 
 echo ">>> Iniciando ComfyUI..."
-python main.py --use-sage-attention --listen --port 3001 --preview-method latent2rgb --enable-cors-header *
+python main.py --use-sage-attention --listen --port 3001 --preview-method latent2rgb --enable-cors-header "*"
