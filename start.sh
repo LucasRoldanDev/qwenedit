@@ -93,9 +93,9 @@ if [ -n "$REPO_WORKFLOW_LORAS" ]; then
     
     # Usamos el token si existe
     if [ -n "$HF_TOKEN" ]; then
-        huggingface-cli download "$REPO_WORKFLOW_LORAS" --local-dir "$LORA_DIR" --token "$HF_TOKEN" --include "*.safetensors" "*.pt" "*.ckpt" || echo "Error en descarga HF"
+        hf download "$REPO_WORKFLOW_LORAS" --local-dir "$LORA_DIR" --token "$HF_TOKEN" --include "*.safetensors" "*.pt" "*.ckpt" || echo "Error en descarga HF"
     else
-        huggingface-cli download "$REPO_WORKFLOW_LORAS" --local-dir "$LORA_DIR" --include "*.safetensors" "*.pt" "*.ckpt" || echo "Error en descarga HF"
+        hf download "$REPO_WORKFLOW_LORAS" --local-dir "$LORA_DIR" --include "*.safetensors" "*.pt" "*.ckpt" || echo "Error en descarga HF"
     fi
 fi
 
