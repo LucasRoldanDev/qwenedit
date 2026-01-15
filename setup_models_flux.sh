@@ -26,9 +26,9 @@ download_model() {
         
         # CORRECCIÓN: Quitamos --local-dir-use-symlinks False
         if [ -n "$HF_TOKEN" ]; then
-            hf download "$repo_id" "$filename" --local-dir "$target_dir" --token "$HF_TOKEN" --quiet
+            hf download "$repo_id" "$filename" --local-dir "$target_dir" --token "$HF_TOKEN"
         else
-            hf download "$repo_id" "$filename" --local-dir "$target_dir" --quiet
+            hf download "$repo_id" "$filename" --local-dir "$target_dir"
         fi
     else
         echo "   ✔ $filename ya existe."
