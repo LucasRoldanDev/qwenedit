@@ -121,4 +121,7 @@ comfyui:
 EOF
 
 echo ">>> Iniciando ComfyUI..."
+
+pip install websocket-client
+
 python main.py --use-sage-attention --listen --port 3001 --preview-method latent2rgb --enable-cors-header "*"
