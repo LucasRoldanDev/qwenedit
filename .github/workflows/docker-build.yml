@@ -47,7 +47,7 @@ jobs:
           context: .
           file: Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/comfyui-custom:v1
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/comfyui-custom:v0.1
           # CAMBIO CLAVE AQUÍ:
           # Usamos 'gha' en lugar de 'registry' o 'inline' para reducir carga en el disco local
           cache-from: type=gha
