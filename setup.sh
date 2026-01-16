@@ -332,4 +332,4 @@ chmod +x main.py
 source "$VENV_DIR/bin/activate"
 
 # Ejecutar
-python main.py --use-sage-attention --listen --port 3001 --preview-method latent2rgb --enable-cors-header * 
+python main.py --listen --port 3001 --preview-method latent2rgb --enable-cors-header * 
