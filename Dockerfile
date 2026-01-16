@@ -1,17 +1,13 @@
-# Base solicitada
 FROM runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WORKSPACE="/workspace"
 ENV COMFY_DIR="${WORKSPACE}/ComfyUI"
 ENV VENV_DIR="${COMFY_DIR}/venv"
-# Añadimos el venv al PATH para no repetir source activate
 ENV PATH="${VENV_DIR}/bin:$PATH" 
 ENV COMFYUI_VERSION="v0.4.0"
 
-# =================================================================================
-# 1. PREPARACIÓN DEL SISTEMA
-# =================================================================================
+# 1. Preparación del sistema (Limpiamos caché apt al final de la misma capa)
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y software-properties-common build-essential git python3-pip wget cmake pkg-config ninja-build curl \
     python3.12 python3.12-venv python3.12-dev && \
@@ -19,28 +15,25 @@ RUN apt-get update && apt-get upgrade -y && \
     update-alternatives --set python3 /usr/bin/python3.12 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# =================================================================================
-# 2. INSTALACIÓN DE COMFYUI Y VENV
-# =================================================================================
+# 2. Instalación de ComfyUI
 WORKDIR ${WORKSPACE}
-
 RUN git clone https://github.com/comfyanonymous/ComfyUI.git ${COMFY_DIR} && \
     cd ${COMFY_DIR} && \
     git fetch --all --tags && \
     git checkout ${COMFYUI_VERSION}
 
 WORKDIR ${COMFY_DIR}
-RUN python3 -m venv venv
 
-# 4. Requirements de ComfyUI
-RUN pip install -r requirements.txt
+# --- PUNTOS CRÍTICOS PARA AHORRAR ESPACIO ---
 
-# 6. Huggingface CLI
-RUN pip install "huggingface_hub[cli]"
+# A: Usar system-site-packages para reciclar el Torch de la imagen base
+RUN python3 -m venv venv --system-site-packages
 
-# =================================================================================
-# 3. INSTALACIÓN DE CUSTOM NODES
-# =================================================================================
+# B: --no-cache-dir es vital
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir "huggingface_hub[cli]"
+
+# 3. Custom Nodes
 WORKDIR ${COMFY_DIR}/custom_nodes
 
 RUN git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Manager.git && \
@@ -57,20 +50,20 @@ RUN git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Manager.git && \
     git clone --depth 1 https://github.com/ClownsharkBatwing/RES4LYF.git && \
     git clone --depth 1 https://github.com/TinyTerra/ComfyUI_tinyterraNodes
 
-# Instalación de requirements de nodos
+# C: Eliminar torch de los requirements de los nodos para no reinstalarlo
 RUN for dir in */; do \
         if [ -f "$dir/requirements.txt" ]; then \
-            echo "Installing requirements for $dir"; \
-            pip install -r "$dir/requirements.txt" || echo "Warning: Failed to install reqs for $dir"; \
+            sed -i '/torch/d' "$dir/requirements.txt"; \
+            sed -i '/opencv-python/d' "$dir/requirements.txt"; \
+            pip install --no-cache-dir -r "$dir/requirements.txt" || echo "Warning: Failed reqs for $dir"; \
         fi; \
     done
 
-# =================================================================================
-# 4. CONFIGURACIÓN FINAL
-# =================================================================================
+RUN pip install --no-cache-dir opencv-python-headless
+
+# 4. Config Final
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
 WORKDIR ${COMFY_DIR}
-# En lugar de copiar un archivo local, le decimos que descargue y ejecute el remoto al iniciar
 CMD ["/bin/bash", "-c", "curl -fsSL https://raw.githubusercontent.com/LucasRoldanDev/qwenedit/refs/heads/main/start.sh | bash"]
