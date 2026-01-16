@@ -32,22 +32,8 @@ RUN git clone https://github.com/comfyanonymous/ComfyUI.git ${COMFY_DIR} && \
 WORKDIR ${COMFY_DIR}
 RUN python3 -m venv venv
 
-# --- INSTALACIÓN DE DEPENDENCIAS ---
-
-# 1. Pip base
-RUN pip install --upgrade pip wheel
-
-# 2. PyTorch (Directo de PyPI para máxima compatibilidad)
-RUN pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0
-
-# 3. Dependencias extra
-RUN pip install triton packaging
-
 # 4. Requirements de ComfyUI
 RUN pip install -r requirements.txt
-
-# 5. SageAttention (CORREGIDO: Instalación directa desde URL)
-RUN pip install "https://huggingface.co/nitin19/flash-attention-wheels/resolve/main/sageattention-2.1.1-cp312-cp312-linux_x86_64.whl"
 
 # 6. Huggingface CLI
 RUN pip install "huggingface_hub[cli]"
