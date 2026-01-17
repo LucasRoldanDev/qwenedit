@@ -8,7 +8,7 @@ ENV WORKSPACE="/workspace"
 ENV COMFY_DIR="${WORKSPACE}/ComfyUI"
 ENV VENV_DIR="${COMFY_DIR}/venv"
 ENV PATH="${VENV_DIR}/bin:$PATH" 
-ENV COMFYUI_VERSION="v0.4.0"
+ENV COMFYUI_VERSION="v0.3.76"
 
 # 1. Preparación del sistema (Limpiamos caché apt al final de la misma capa)
 RUN apt-get update && apt-get upgrade -y && \
